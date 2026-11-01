@@ -1,0 +1,1878 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AST2SE — Asteroid Designer</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+:root{
+  --bg:#080c12; --panel:#0d141c; --panel2:#111a24; --line:#1c2a38;
+  --cy:#00cfff; --gr:#39ff14; --or:#ff9b2f; --rd:#ff3b3b; --tx:#c8dbe8; --dim:#5f7b8f;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--bg); color:var(--tx); font-family:'Share Tech Mono',monospace;
+  background-image:linear-gradient(rgba(0,207,255,.045) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(0,207,255,.045) 1px,transparent 1px);
+  background-size:34px 34px; overflow:hidden;
+}
+h1,h2,h3,.ttl,button,select,.tab{font-family:'Orbitron',sans-serif}
+header{
+  height:52px; display:flex; align-items:center; gap:18px; padding:0 16px;
+  border-bottom:1px solid var(--line); background:linear-gradient(180deg,#0e1822,#0a1017);
+  box-shadow:0 0 22px rgba(0,207,255,.12);
+}
+header h1{font-size:17px; letter-spacing:3px; color:var(--cy); text-shadow:0 0 10px rgba(0,207,255,.6)}
+header .sub{font-size:11px; color:var(--dim); letter-spacing:1px}
+.led{width:8px;height:8px;border-radius:50%;background:var(--gr);box-shadow:0 0 8px var(--gr);animation:p 2s infinite}
+@keyframes p{50%{opacity:.25}}
+#app{display:flex; height:calc(100% - 52px)}
+#side{width:392px; min-width:392px; border-right:1px solid var(--line); background:rgba(9,14,20,.86); display:flex; flex-direction:column}
+#tabs{display:flex; border-bottom:1px solid var(--line)}
+.tab{flex:1; padding:9px 0; text-align:center; font-size:10.5px; letter-spacing:1.5px; color:var(--dim);
+  background:#0a1119; border-right:1px solid var(--line); cursor:pointer; user-select:none; transition:.15s}
+.tab:last-child{border-right:0}
+.tab:hover{color:var(--tx)}
+.tab.on{color:var(--cy); background:#0f1c27; box-shadow:inset 0 -2px 0 var(--cy); text-shadow:0 0 8px rgba(0,207,255,.7)}
+#panes{flex:1; overflow-y:auto; padding:12px}
+#panes::-webkit-scrollbar{width:8px}#panes::-webkit-scrollbar-thumb{background:#1d3245}
+.pane{display:none}.pane.on{display:block}
+.card{background:var(--panel); border:1px solid var(--line); border-top:2px solid var(--cy); padding:10px 11px 12px; margin-bottom:11px}
+.card.g{border-top-color:var(--gr)} .card.o{border-top-color:var(--or)} .card.r{border-top-color:var(--rd)}
+.card h3{font-size:10.5px; letter-spacing:2px; color:var(--cy); margin-bottom:9px}
+.card.g h3{color:var(--gr)} .card.o h3{color:var(--or)} .card.r h3{color:var(--rd)}
+.row{display:flex; align-items:center; gap:8px; margin-bottom:7px}
+.row label{flex:0 0 108px; font-size:11px; color:var(--dim)}
+.row input[type=range]{flex:1; height:3px; -webkit-appearance:none; background:#1b2b3a; outline:none}
+.row input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; width:11px;height:11px;border-radius:50%;background:var(--cy);box-shadow:0 0 7px var(--cy);cursor:pointer}
+.row .val{flex:0 0 46px; text-align:right; font-size:11px; color:var(--gr)}
+textarea{
+  width:100%; height:74px; background:#0a121a; border:1px solid var(--line); color:var(--gr);
+  font-family:'Share Tech Mono',monospace; font-size:9.5px; padding:5px; outline:none; resize:vertical;
+  word-break:break-all}
+textarea:focus{border-color:var(--cy); box-shadow:0 0 8px rgba(0,207,255,.3)}
+input[type=text],input[type=number],select{
+  background:#0a121a; border:1px solid var(--line); color:var(--tx); font-family:'Share Tech Mono',monospace;
+  font-size:11px; padding:4px 6px; outline:none; flex:1}
+input:focus,select:focus{border-color:var(--cy); box-shadow:0 0 8px rgba(0,207,255,.3)}
+button{
+  background:#0d1b26; border:1px solid var(--cy); color:var(--cy); padding:7px 10px; font-size:10px;
+  letter-spacing:1.4px; cursor:pointer; transition:.15s; text-transform:uppercase}
+button:hover{background:var(--cy); color:#04121a; box-shadow:0 0 14px rgba(0,207,255,.55)}
+button.g{border-color:var(--gr);color:var(--gr)} button.g:hover{background:var(--gr);color:#05180a;box-shadow:0 0 14px rgba(57,255,20,.5)}
+button.o{border-color:var(--or);color:var(--or)} button.o:hover{background:var(--or);color:#1a0d00}
+button.sm{padding:4px 7px; font-size:9px}
+.btns{display:grid; grid-template-columns:1fr 1fr; gap:7px}
+.chk{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--dim);margin-bottom:7px;cursor:pointer}
+.chk input{accent-color:var(--cy)}
+#view{flex:1; position:relative}
+#cv{width:100%;height:100%;display:block}
+#topo{position:absolute;inset:0;width:100%;height:100%;display:none;background:#070b10}
+#topo.on{display:block}
+#tinfo{position:absolute;bottom:10px;right:10px;font-size:10.5px;background:rgba(8,12,18,.85);
+  border:1px solid var(--line);border-top:2px solid var(--cy);padding:7px 9px;display:none}
+#tinfo.on{display:block}
+#tinfo .ramp{width:150px;height:9px;margin:4px 0;border:1px solid var(--line)}
+#hud{position:absolute; top:10px; left:10px; font-size:11px; line-height:1.65; pointer-events:none; text-shadow:0 0 6px #000}
+#hud b{color:var(--cy);font-family:'Orbitron';font-size:10px;letter-spacing:1px}
+#legend{position:absolute; bottom:10px; left:10px; font-size:10.5px; background:rgba(8,12,18,.82); border:1px solid var(--line); border-top:2px solid var(--gr); padding:7px 9px; max-height:38%; overflow:auto}
+.lg{display:flex;align-items:center;gap:6px;margin:2px 0}
+.sw{width:10px;height:10px;border:1px solid #000}
+#gen{position:absolute; top:10px; right:10px; display:flex; gap:7px}
+#prog{position:absolute; inset:0; background:rgba(4,8,12,.82); display:none; align-items:center; justify-content:center; flex-direction:column; gap:12px}
+#prog.on{display:flex}
+#prog .t{font-family:'Orbitron';font-size:13px;letter-spacing:3px;color:var(--cy);text-shadow:0 0 12px var(--cy)}
+#bar{width:280px;height:4px;background:#12202c;border:1px solid var(--line)}
+#bar i{display:block;height:100%;width:0;background:var(--cy);box-shadow:0 0 10px var(--cy)}
+.rule{border:1px solid var(--line); border-left:2px solid var(--or); padding:7px; margin-bottom:7px; background:#0a121a}
+.rule .hd{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+.note{font-size:10.5px;color:var(--dim);line-height:1.55}
+.warn{font-size:10.5px;color:var(--or);line-height:1.55}
+#drop{border:1px dashed #234; padding:16px; text-align:center; font-size:11px; color:var(--dim); cursor:pointer}
+#drop.hi{border-color:var(--cy); color:var(--cy)}
+#imgprev{width:100%; margin-top:8px; image-rendering:pixelated; border:1px solid var(--line); display:none}
+code{color:var(--gr)}
+</style>
+</head>
+<body>
+<header>
+  <div class="led"></div>
+  <h1>AST2SE</h1>
+  <div class="sub">// VOXEL ASTEROID FORGE — SPACE ENGINEERS</div>
+</header>
+
+<div id="app">
+<div id="side">
+  <div id="tabs">
+    <div class="tab on" data-p="shape">FORM</div>
+    <div class="tab" data-p="mat">MATERIAL</div>
+    <div class="tab" data-p="img">BILD</div>
+    <div class="tab" data-p="exp">EXPORT</div>
+  </div>
+  <div id="panes">
+
+    <!-- SHAPE -->
+    <div class="pane on" id="p-shape">
+      <div class="card g">
+        <h3>PROJEKT-CODE</h3>
+        <textarea id="pcode" placeholder="AST2SE1:… — hier einfügen und LADEN drücken"></textarea>
+        <div class="btns" style="margin-top:7px">
+          <button class="g sm" id="pcSave">ERZEUGEN + KOPIEREN</button>
+          <button class="g sm" id="pcLoad">LADEN</button>
+        </div>
+        <label class="chk" style="margin-top:7px"><input type="checkbox" id="embImg"> Bild in den Code einbetten</label>
+        <div class="note">Enthält <b>alle</b> Regler, Adern-Regeln und eigene Materialien — nicht nur den Noise-Seed.
+        Der Code liegt auch als <code>projekt.a2s</code> in jeder Export-ZIP. Ohne Einbetten musst du ein
+        verwendetes Bild neu laden.</div>
+      </div>
+
+      <div class="card">
+        <h3>BASIS</h3>
+        <div class="row"><label>Quelle</label>
+          <select id="src">
+            <option value="proc">Asteroid (prozedural)</option>
+            <option value="isle">Fliegende Insel</option>
+            <option value="img">Bild / Vorlage</option>
+          </select>
+        </div>
+        <div class="row"><label>Name</label><input type="text" id="aname" placeholder="Glacier" value="Glacier"></div>
+        <div class="row"><label>Seed</label><input type="number" id="seed" value="1337"><button class="sm" id="rnd">RND</button></div>
+        <div class="note">Name = Dateiname und Chat-Befehl: <code>/ast Glacier</code>. Nur A-Z a-z 0-9 _ -</div>
+        <label class="chk"><input type="checkbox" id="autofit" checked> Auto-Fit (Objekt ins Gitter einpassen)</label>
+        <div class="row"><label>Entwurfsgitter</label>
+          <select id="res"><option>32</option><option>48</option><option selected>64</option><option>96</option><option>128</option><option>160</option><option>192</option><option>256</option></select>
+        </div>
+        <div class="row"><label>Voxel-Skalierung</label>
+          <select id="vscale"><option value="1" selected>1× (1 m)</option><option value="2">2× (2 m)</option><option value="4">4× (4 m)</option><option value="8">8× (8 m)</option></select>
+        </div>
+        <div class="row"><label>Ergebnis</label><span class="val" id="v-sesize" style="flex:1;text-align:left;color:var(--cy)">—</span></div>
+        <div class="row"><label>Glättung</label><input type="range" id="smooth" min="1" max="8" step="0.5" value="4"><span class="val" id="v-smooth"></span></div>
+        <div class="note">Ein dichtes 2048³-Gitter wären <b>51 GB</b> — geht in keinem Browser.
+        Deshalb Entwurfsgitter × Skalierung: der Mod interpoliert beim Schreiben das SDF trilinear,
+        die Oberfläche bleibt glatt, nur Details unter ~2 Entwurfsvoxeln fallen weg.<br>
+        <b>256 × 8× = 2048 m</b> bei 8 m Entwurfsdetail. Für einen 50-m-Felsen nimmt man 1×.<br>
+        <span style="color:var(--or)">Ab 160 dauert die Generierung 20–60 s. Vorschau wird ab 128 dezimiert,
+        exportiert wird immer voll.</span><br><br>
+        <b>Glättung</b> steuert, wie breit der weiche Übergang an der Oberfläche ist. Niedrig = würfelig
+        (SE kann nicht interpolieren), 4 = glatt und rund. Höher rundet stärker, kann feine Details
+        aufweichen. Das war die Ursache der eckigen Oberflächen.</div>
+      </div>
+
+      <div class="card">
+        <h3>GEOMETRIE</h3>
+        <div class="row"><label>Radius</label><input type="range" id="radius" min="0.3" max="1" step="0.01" value="0.86"><span class="val" id="v-radius"></span></div>
+        <div class="row"><label>Streckung X</label><input type="range" id="sx" min="0.4" max="2" step="0.01" value="1"><span class="val" id="v-sx"></span></div>
+        <div class="row"><label>Streckung Y</label><input type="range" id="sy" min="0.4" max="2" step="0.01" value="0.82"><span class="val" id="v-sy"></span></div>
+        <div class="row"><label>Streckung Z</label><input type="range" id="sz" min="0.4" max="2" step="0.01" value="1.15"><span class="val" id="v-sz"></span></div>
+      </div>
+
+      <div class="card g" id="c-isle">
+        <h3>FLIEGENDE INSEL</h3>
+        <div class="row"><label>Plateau-Radius</label><input type="range" id="pR" min="0.2" max="0.95" step="0.01" value="0.7"><span class="val" id="v-pR"></span></div>
+        <div class="row"><label>Plateau-Höhe</label><input type="range" id="pH" min="-0.4" max="0.45" step="0.01" value="0.22"><span class="val" id="v-pH"></span></div>
+        <div class="row"><label>Rand-Zacken</label><input type="range" id="pE" min="0" max="0.5" step="0.01" value="0.18"><span class="val" id="v-pE"></span></div>
+        <div class="row"><label>Klippen-Rundung</label><input type="range" id="pRnd" min="0" max="14" step="0.5" value="3"><span class="val" id="v-pRnd"></span></div>
+        <div class="row"><label>Kegel-Tiefe</label><input type="range" id="pT" min="0.05" max="1.4" step="0.01" value="0.75"><span class="val" id="v-pT"></span></div>
+        <div class="row"><label>Kegel-Form</label><input type="range" id="pTe" min="0.4" max="4" step="0.1" value="1.6"><span class="val" id="v-pTe"></span></div>
+        <div class="row"><label>Noise oben</label><input type="range" id="pNt" min="0" max="0.25" step="0.005" value="0.04"><span class="val" id="v-pNt"></span></div>
+        <div class="row"><label>Noise unten</label><input type="range" id="pNb" min="0" max="0.6" step="0.01" value="0.22"><span class="val" id="v-pNb"></span></div>
+        <div class="row"><label>Terrassen</label><input type="range" id="pTr" min="0" max="8" step="1" value="0"><span class="val" id="v-pTr"></span></div>
+        <div class="row"><label>Terrassen-Höhe</label><input type="range" id="pTh" min="0.5" max="8" step="0.5" value="2.5"><span class="val" id="v-pTh"></span></div>
+        <div class="row"><label>Wurzeln/Zapfen</label><input type="range" id="pSn" min="0" max="24" step="1" value="6"><span class="val" id="v-pSn"></span></div>
+        <div class="row"><label>Wurzel-Länge</label><input type="range" id="pSl" min="0.1" max="1.2" step="0.02" value="0.5"><span class="val" id="v-pSl"></span></div>
+        <div class="row"><label>Wurzel-Dicke</label><input type="range" id="pSr" min="1" max="14" step="0.5" value="4"><span class="val" id="v-pSr"></span></div>
+        <label class="chk"><input type="checkbox" id="pImg"> Grundriss aus Bild (Top-Down-Silhouette)</label>
+        <div style="border-top:1px solid var(--line);margin:9px 0 8px"></div>
+        <div class="row"><label>Berge</label>
+          <select id="mMode"><option value="off">Aus</option><option value="center">Ein zentraler</option><option value="rand">Mehrere verstreut</option></select>
+        </div>
+        <div class="row"><label>Anzahl</label><input type="range" id="mN" min="1" max="12" step="1" value="4"><span class="val" id="v-mN"></span></div>
+        <div class="row"><label>Höhe</label><input type="range" id="mH" min="0.02" max="0.6" step="0.01" value="0.2"><span class="val" id="v-mH"></span></div>
+        <div class="row"><label>Breite</label><input type="range" id="mR" min="0.1" max="1.5" step="0.02" value="0.5"><span class="val" id="v-mR"></span></div>
+        <div class="row"><label>Schärfe</label><input type="range" id="mE" min="0.5" max="4" step="0.1" value="1.6"><span class="val" id="v-mE"></span></div>
+        <div class="note">Schärfe 0.8 = runde Kuppe, 1.6 = Berg, 3+ = Nadel. Breite relativ zum
+        Plateau-Innenradius; über 1.0 wird der ganze Grundriss zum Kegel.</div>
+        <div class="note">Streckung X/Z formt das Plateau, Streckung Y wird hier ignoriert. Höhe 0 = Plateau auf Gittermitte.</div>
+      </div>
+
+      <div class="card">
+        <h3>OBERFLÄCHEN-NOISE</h3>
+        <div class="row"><label>Amplitude</label><input type="range" id="amp" min="0" max="0.6" step="0.01" value="0.22"><span class="val" id="v-amp"></span></div>
+        <div class="row"><label>Frequenz</label><input type="range" id="freq" min="0.4" max="6" step="0.1" value="1.8"><span class="val" id="v-freq"></span></div>
+        <div class="row"><label>Oktaven</label><input type="range" id="oct" min="1" max="6" step="1" value="4"><span class="val" id="v-oct"></span></div>
+        <div class="row"><label>Rauheit</label><input type="range" id="gain" min="0.2" max="0.75" step="0.01" value="0.5"><span class="val" id="v-gain"></span></div>
+      </div>
+
+      <div class="card o">
+        <h3>KRATER</h3>
+        <div class="row"><label>Anzahl</label><input type="range" id="crn" min="0" max="40" step="1" value="7"><span class="val" id="v-crn"></span></div>
+        <div class="row"><label>Größe</label><input type="range" id="crs" min="0.05" max="0.6" step="0.01" value="0.24"><span class="val" id="v-crs"></span></div>
+        <div class="row"><label>Streuung</label><input type="range" id="crv" min="0" max="1" step="0.01" value="0.6"><span class="val" id="v-crv"></span></div>
+      </div>
+
+      <div class="card o">
+        <h3>HÖHLEN / TUNNEL</h3>
+        <label class="chk"><input type="checkbox" id="hollow"> Hohler Kern</label>
+        <div class="row"><label>Kern-Radius</label><input type="range" id="hr" min="0.1" max="0.85" step="0.01" value="0.45"><span class="val" id="v-hr"></span></div>
+        <label class="chk"><input type="checkbox" id="tun"> Tunnelsystem</label>
+        <div class="row"><label>Tunnel-Dichte</label><input type="range" id="td" min="0.02" max="0.3" step="0.005" value="0.09"><span class="val" id="v-td"></span></div>
+        <div class="row"><label>Tunnel-Größe</label><input type="range" id="ts" min="0.5" max="4" step="0.1" value="1.6"><span class="val" id="v-ts"></span></div>
+      </div>
+    </div>
+
+    <!-- MATERIAL -->
+    <div class="pane" id="p-mat">
+      <div class="card g">
+        <h3>SCHICHTEN</h3>
+        <div class="row"><label>Kern</label><select id="mCore"></select></div>
+        <div class="row"><label>Kruste</label><select id="mCrust"></select></div>
+        <div class="row"><label>Krusten-Tiefe</label><input type="range" id="crustD" min="0" max="12" step="1" value="3"><span class="val" id="v-crustD"></span></div>
+        <div class="row"><label>Schicht-Noise</label><input type="range" id="crustN" min="0" max="6" step="0.1" value="2"><span class="val" id="v-crustN"></span></div>
+        <div class="note">Tiefe in Voxeln ab Oberfläche. 0 = keine Kruste.</div>
+      </div>
+
+      <div class="card g">
+        <h3>OBERFLÄCHE (INSEL-BEWUCHS)</h3>
+        <label class="chk"><input type="checkbox" id="topOn" checked> Deckschicht aktiv (Himmel-über-mir-Test)</label>
+        <div class="row"><label>Deckschicht</label><select id="mTop"></select></div>
+        <div class="row"><label>Dicke</label><input type="range" id="topD" min="1" max="6" step="1" value="1"><span class="val" id="v-topD"></span></div>
+        <div class="row"><label>Unterschicht</label><select id="mSub"></select></div>
+        <div class="row"><label>Dicke</label><input type="range" id="subD" min="0" max="12" step="1" value="4"><span class="val" id="v-subD"></span></div>
+        <label class="chk"><input type="checkbox" id="slopeOn"> Steile Wände aussparen (Klippen = Stein)</label>
+        <div class="row"><label>ab Steilheit</label><input type="range" id="slope" min="0.1" max="0.95" step="0.02" value="0.6"><span class="val" id="v-slope"></span></div>
+        <label class="chk"><input type="checkbox" id="snowOn"> Gipfel-Material oberhalb Höhe</label>
+        <div class="row"><label>Gipfel</label><select id="mSnow"></select></div>
+        <div class="row"><label>Höhengrenze</label><input type="range" id="snowY" min="-0.4" max="0.5" step="0.01" value="0.25"><span class="val" id="v-snowY"></span></div>
+        <div class="note">Standard: <b>jede</b> Fläche mit freiem Himmel bekommt die Deckschicht — durchgehender
+        Boden, keine Steinstreifen an Terrassen-/Bergkanten. Decken (Wurzel-Unterseiten, Höhlendächer) nie.<br>
+        Checkbox an: sehr steile Wände bleiben Stein (für Klippen). Höher = mehr bleibt Stein.</div>
+      </div>
+
+      <div class="card">
+        <h3>EIGENE MATERIALIEN</h3>
+        <div class="row"><input type="text" id="custom" placeholder="z.B. MarsSoil, AlienSnow"><button class="sm" id="addCustom">+</button></div>
+        <div class="note">Die 62 Namen in den Dropdowns stammen aus der <b>MaterialIndexTable einer echten .vx2</b>,
+        sind also verbindlich. Hier nur nötig für Mod-Materialien. Unbekannte Namen meldet der Mod im Chat.</div>
+      </div>
+
+      <div class="card o">
+        <h3>ERZ-ADERN</h3>
+        <div id="rules"></div>
+        <button class="o sm" id="addRule">+ ADER HINZUFÜGEN</button>
+      </div>
+
+      <div class="card">
+        <h3>VERTEILUNG</h3>
+        <div class="row"><label>Ader-Seed</label><input type="number" id="oreSeed" value="42"></div>
+        <div class="row"><label>Kanten-Rauheit</label><input type="range" id="edgeR" min="0" max="0.7" step="0.02" value="0.45"><span class="val" id="v-edgeR"></span></div>
+        <div class="note">Adern werden als Random-Walk-Blobs gestempelt. Tiefe min/max begrenzt, wie weit unter der Oberfläche eine Ader starten darf — Uran/Platin also tief, Eisen/Eis flach.</div>
+      </div>
+    </div>
+
+    <!-- IMAGE -->
+    <div class="pane" id="p-img">
+      <div class="card">
+        <h3>VORLAGE LADEN</h3>
+        <div id="drop">BILD HIER ABLEGEN<br>oder klicken (PNG / JPG)</div>
+        <input type="file" id="file" accept="image/*" style="display:none">
+        <img id="imgprev">
+      </div>
+      <div class="card">
+        <h3>MAPPING</h3>
+        <div class="row"><label>Modus</label>
+          <select id="imode">
+            <option value="equi">Heightmap (Equirect)</option>
+            <option value="lathe">Silhouette (Rotation)</option>
+            <option value="extr">Silhouette (Extrusion)</option>
+          </select>
+        </div>
+        <div class="row"><label>Höhen-Stärke</label><input type="range" id="ih" min="0" max="1" step="0.01" value="0.45"><span class="val" id="v-ih"></span></div>
+        <div class="row"><label>Schwelle</label><input type="range" id="ithr" min="0.02" max="0.98" step="0.01" value="0.5"><span class="val" id="v-ithr"></span></div>
+        <div class="row"><label>Dicke (Extr.)</label><input type="range" id="iex" min="0.05" max="1" step="0.01" value="0.5"><span class="val" id="v-iex"></span></div>
+        <label class="chk"><input type="checkbox" id="iinv"> Invertieren</label>
+        <label class="chk"><input type="checkbox" id="ialpha" checked> Alpha als Maske nutzen</label>
+        <div class="note">
+          <b>Equirect:</b> Graustufen = Radius-Versatz auf einer Kugel (u=Länge, v=Breite).<br>
+          <b>Rotation:</b> Silhouette wird um die Y-Achse gedreht → Vasen-/Felsformen.<br>
+          <b>Extrusion:</b> Silhouette wird entlang Z ausgezogen → Logos, Symbole, Platten.<br>
+          Noise aus dem FORM-Tab wird zusätzlich aufgeschlagen (Amplitude auf 0 = exakte Vorlage).
+        </div>
+      </div>
+    </div>
+
+    <!-- EXPORT -->
+    <div class="pane" id="p-exp">
+      <div class="card g">
+        <h3>DIREKT NUTZBAR</h3>
+        <div class="btns">
+          <button class="g" id="eVox">.VOX</button>
+          <button class="g" id="eObj">.OBJ</button>
+          <button class="g" id="eJson">.JSON</button>
+          <button class="g" id="ePng">PREVIEW.PNG</button>
+        </div>
+        <div class="note" style="margin-top:9px">
+          <b>.vox</b> → MagicaVoxel / Weiterbearbeitung.<br>
+          <b>.obj</b> → ZIP mit obj+mtl. SEToolbox "Import Model as Voxel". <span style="color:var(--rd)">Achtung: SEToolbox
+          hat nur <b>ein</b> Material-Dropdown und ignoriert die OBJ-Gruppen — dein Asteroid wird
+          einfarbig. Für Multi-Material den Mod-Weg nehmen.</span><br>
+          <b>.json</b> → Rohdaten (Content + Material, RLE) für eigene Pipelines.
+        </div>
+      </div>
+
+      <div class="card o">
+        <h3>SE MOD (LAUFZEIT-SPAWN)</h3>
+        <div class="btns">
+          <button class="o" id="eMod">KOMPLETTER MOD .ZIP</button>
+          <button class="o" id="eB64">NUR .B64</button>
+        </div>
+        <div class="btns" style="margin-top:7px">
+          <button class="o sm" id="eRead">README</button>
+        </div>
+        <div class="warn" style="margin-top:9px">
+          <b>KOMPLETTER MOD</b> = ZIP mit fertiger Struktur, nach
+          <code>%AppData%\SpaceEngineers\Mods\</code> entpacken.<br>
+          <b>NUR .B64</b> = nur die Asteroiden-Datei. Für weitere Asteroiden im schon
+          installierten Mod: einfach nach <code>Ast2Se\Asteroids\</code> kopieren, fertig.
+          Die <code>.cs</code> ist generisch, sie muss nie wieder angefasst werden.<br><br>
+          Ingame <code>/ast Glacier</code> öffnet den <b>Platzierungsmodus</b>: Cyan-Drahtwürfel mit WASD/RF bewegen, Q/E drehen, Z/X Distanz, ENTER bauen. <code>/ast Glacier now</code> baut sofort.<br><br>
+          Danach <b>Welt speichern</b>: SE serialisiert selbst eine korrekte <code>.vx2</code> in den
+          Weltordner. Damit brauchst du SEToolbox nicht mehr.
+        </div>
+      </div>
+
+      <div class="card r">
+        <h3>LIMITS</h3>
+        <div class="note">
+          Storage-Größe muss 2er-Potenz und ≥ 64 sein → wird automatisch auf 64/128/256 gepolstert
+          und zentriert.<br>
+          Programmable Block kann <b>keine</b> Voxel schreiben. Nur Mod oder SEToolbox.<br><br>
+          <b>.vx2-Format</b> (aus einer echten Datei reverse-engineered):<br>
+          <code>gzip("Octree" + ver + [varint typ][varint ver][varint size][payload]…)</code><br>
+          Chunks: 1 StorageMetaData, 2 MaterialIndexTable, 3/4 MacroContent/MaterialNodes,
+          6 ContentLeafOctree, 8 MaterialLeafOctree.<br>
+          Direktes Schreiben scheitert an den Leaf-Octrees (LOD-Pyramide, LeafLodCount=4) — deshalb
+          lassen wir SE selbst serialisieren.
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div id="view">
+  <canvas id="cv"></canvas>
+  <canvas id="topo"></canvas>
+  <div id="hud"></div>
+  <div id="tinfo"></div>
+  <div id="legend"></div>
+  <div id="gen">
+    <button class="g" id="build">GENERIEREN</button>
+    <button id="mode3d">TOPO</button>
+    <button id="reset">ANSICHT</button>
+  </div>
+  <div id="prog"><div class="t" id="pt">GENERIERE…</div><div id="bar"><i></i></div></div>
+</div>
+</div>
+
+<script>
+/* ============================ MATERIALIEN ============================ */
+// Kanonische SE-Materialliste, extrahiert aus der MaterialIndexTable einer echten .vx2.
+// Reihenfolge == SE Material-Index (0-basiert). Palette-Index hier = SE-Index + 1 (0 = leer).
+const BASE_MATERIALS=[
+ {n:'Stone_01',c:'#6b6b63'}, {n:'Stone_02',c:'#7d7469'}, {n:'Stone_03',c:'#565249'},
+ {n:'Stone_04',c:'#8b8375'}, {n:'Stone_05',c:'#454139'}, {n:'Iron_01',c:'#8a5a3c'},
+ {n:'Iron_02',c:'#a86a3e'}, {n:'Nickel_01',c:'#9aa08f'}, {n:'Cobalt_01',c:'#3f6bc0'},
+ {n:'Magnesium_01',c:'#d8d2c0'}, {n:'Silicon_01',c:'#c99a4f'}, {n:'Silver_01',c:'#c9d2d8'},
+ {n:'Gold_01',c:'#d8b23a'}, {n:'Platinum_01',c:'#e3eaee'}, {n:'Uraninite_01',c:'#4fbf5a'},
+ {n:'Ice_01',c:'#9fd8f2'}, {n:'Ice_02',c:'#7fc4e8'}, {n:'Ice_03',c:'#b8e6ff'},
+ {n:'SmallMoonRocks',c:'#8a8781'}, {n:'DebugMaterial',c:'#ff00ff'}, {n:'Soil',c:'#5c4327'},
+ {n:'Grass',c:'#4e8a35'}, {n:'Grass bare',c:'#6e8a45'}, {n:'Grass_02',c:'#5a9440'},
+ {n:'Grass_old',c:'#3f7a2c'}, {n:'Grass_old bare',c:'#5f7a3c'}, {n:'Woods_grass',c:'#2f6b28'},
+ {n:'Woods_grass bare',c:'#4f6b38'}, {n:'Rocks_grass',c:'#6a7a52'}, {n:'Snow',c:'#eaf4fb'},
+ {n:'Ice',c:'#a8ddf5'}, {n:'Sand_02',c:'#c8ac6e'}, {n:'DesertRocks',c:'#b08a5a'},
+ {n:'Stone',c:'#706a60'}, {n:'AlienGreenGrass',c:'#6bbf3a'}, {n:'AlienGreenGrass bare',c:'#7fbf5a'},
+ {n:'AlienIce_03',c:'#a0e0e8'}, {n:'AlienRockyTerrain',c:'#7a6a5a'}, {n:'AlienRockyMountain',c:'#6a5a4a'},
+ {n:'AlienSand',c:'#c2a878'}, {n:'AlienRockGrass',c:'#7a8a4a'}, {n:'AlienRockGrass bare',c:'#8a9a6a'},
+ {n:'AlienOrangeGrass',c:'#c1762c'}, {n:'AlienOrangeGrass bare',c:'#c99050'}, {n:'AlienIce',c:'#b0e8f0'},
+ {n:'AlienSnow',c:'#e0f0f8'}, {n:'AlienYellowGrass',c:'#c8c03a'}, {n:'AlienYellowGrass bare',c:'#ccc860'},
+ {n:'AlienSoil',c:'#4a3a2a'}, {n:'MarsRocks',c:'#a05a3a'}, {n:'MarsSoil',c:'#8a4a2a'},
+ {n:'MoonSoil',c:'#7e7a72'}, {n:'MoonRocks',c:'#918d85'}, {n:'IceEuropa2',c:'#c8e8f8'},
+ {n:'TritonStone',c:'#7a7080'}, {n:'TritonBlend',c:'#8a8090'}, {n:'TritonIce',c:'#cfe0f0'},
+ {n:'CrackedSoil',c:'#9a7a5a'}, {n:'DustyRocks',c:'#8a8078'}, {n:'DustyRocks2',c:'#7a7068'},
+ {n:'DustyRocks3',c:'#6a6058'}, {n:'PertamSand',c:'#d0a860'}
+];
+let MATERIALS=BASE_MATERIALS.slice();
+function AUTO_COL(i){
+  const h=((i*47)%360)/360,s=0.45,l=0.55;
+  const q=l<0.5?l*(1+s):l+s-l*s, p=2*l-q;
+  const f=t=>{t=(t+1)%1;
+    if(t<1/6)return p+(q-p)*6*t; if(t<1/2)return q; if(t<2/3)return p+(q-p)*(2/3-t)*6; return p;};
+  const r=Math.round(f(h+1/3)*255),g=Math.round(f(h)*255),b=Math.round(f(h-1/3)*255);
+  return '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');
+}
+const hex2rgb=h=>[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];
+
+/* ============================ NOISE ============================ */
+function hash3(x,y,z,s){
+  let h=Math.imul(x,374761393)^Math.imul(y,668265263)^Math.imul(z,2147483647)^Math.imul(s,104729);
+  h=Math.imul(h^(h>>>13),1274126177);
+  return ((h^(h>>>16))>>>0)/4294967295;
+}
+function vnoise(x,y,z,s){
+  const xi=Math.floor(x),yi=Math.floor(y),zi=Math.floor(z);
+  const xf=x-xi,yf=y-yi,zf=z-zi;
+  const u=xf*xf*(3-2*xf),v=yf*yf*(3-2*yf),w=zf*zf*(3-2*zf);
+  const c000=hash3(xi,yi,zi,s),c100=hash3(xi+1,yi,zi,s),c010=hash3(xi,yi+1,zi,s),c110=hash3(xi+1,yi+1,zi,s);
+  const c001=hash3(xi,yi,zi+1,s),c101=hash3(xi+1,yi,zi+1,s),c011=hash3(xi,yi+1,zi+1,s),c111=hash3(xi+1,yi+1,zi+1,s);
+  const x00=c000+(c100-c000)*u,x10=c010+(c110-c010)*u,x01=c001+(c101-c001)*u,x11=c011+(c111-c011)*u;
+  const y0=x00+(x10-x00)*v,y1=x01+(x11-x01)*v;
+  return y0+(y1-y0)*w;
+}
+function fbm(x,y,z,oct,s,gain){
+  let a=1,f=1,sum=0,norm=0;
+  for(let i=0;i<oct;i++){ sum+=a*(vnoise(x*f,y*f,z*f,s+i*7919)*2-1); norm+=a; a*=gain; f*=2; }
+  return sum/norm;
+}
+/* 2D-Distanzfeld (Chamfer 1 / 1.414) — Abstand zur naechsten Zelle mit mask==target */
+function chamfer(N,mask,target){
+  const INF=1e6, d=new Float32Array(N*N);
+  for(let i=0;i<N*N;i++) d[i]=(mask[i]===target)?0:INF;
+  const at=(x,z)=>(x<0||z<0||x>=N||z>=N)?INF:d[x+z*N];
+  for(let z=0;z<N;z++)for(let x=0;x<N;x++){
+    const i=x+z*N;
+    d[i]=Math.min(d[i],at(x-1,z)+1,at(x,z-1)+1,at(x-1,z-1)+1.414,at(x+1,z-1)+1.414);
+  }
+  for(let z=N-1;z>=0;z--)for(let x=N-1;x>=0;x--){
+    const i=x+z*N;
+    d[i]=Math.min(d[i],at(x+1,z)+1,at(x,z+1)+1,at(x+1,z+1)+1.414,at(x-1,z+1)+1.414);
+  }
+  return d;
+}
+function mulberry(seed){let a=seed>>>0;return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return ((t^t>>>14)>>>0)/4294967296;};}
+
+/* ============================ STATE ============================ */
+const S={res:64,content:null,mat:null,rules:[],img:null,imgData:null};
+const $=id=>document.getElementById(id);
+const num=id=>parseFloat($(id).value);
+const chk=id=>$(id).checked;
+
+/* Slider-Anzeigen */
+['radius','sx','sy','sz','amp','freq','oct','gain','crn','crs','crv','hr','td','ts','crustD','crustN','ih','ithr','iex',
+ 'pR','pH','pE','pRnd','pT','pTe','pNt','pNb','pTr','pTh','pSn','pSl','pSr','topD','subD','slope',
+ 'mN','mH','mR','mE','snowY','edgeR','smooth']
+.forEach(id=>{const e=$(id);const o=$('v-'+id);const up=()=>o.textContent=e.value;e.addEventListener('input',up);up();});
+
+/* Tabs */
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.pane').forEach(x=>x.classList.remove('on'));
+  t.classList.add('on'); $('p-'+t.dataset.p).classList.add('on');
+});
+$('rnd').onclick=()=>{$('seed').value=Math.floor(Math.random()*99999);};
+
+/* Material-Dropdowns */
+function fillSel(sel,def){
+  sel.innerHTML='';
+  MATERIALS.forEach((m,i)=>{const o=document.createElement('option');o.value=i+1;o.textContent=m.n;sel.appendChild(o);});
+  sel.value=def;
+}
+function refreshSels(){
+  document.querySelectorAll('#panes select.m, #mCore, #mCrust, #mTop, #mSub, #mSnow').forEach(s=>{
+    const v=s.value; fillSel(s,v);
+  });
+}
+fillSel($('mCore'),1); fillSel($('mCrust'),3);
+fillSel($('mTop'),22); fillSel($('mSub'),21);   // Grass / Soil (SE-Index 21/20 +1)
+fillSel($('mSnow'),30);                         // Snow (SE-Index 29 +1)
+$('addCustom').onclick=()=>{
+  const names=$('custom').value.split(',').map(s=>s.trim()).filter(Boolean);
+  names.forEach(n=>{ if(!MATERIALS.some(m=>m.n===n)) MATERIALS.push({n:n,c:AUTO_COL(MATERIALS.length)}); });
+  $('custom').value=''; refreshSels();
+};
+
+/* Adern-Regeln */
+function addRule(mat,count,size,walk,dmin,dmax){
+  const id='r'+Math.random().toString(36).slice(2,7);
+  const d=document.createElement('div'); d.className='rule'; d.dataset.id=id;
+  d.innerHTML=`<div class="hd"><select class="m" style="flex:1"></select><button class="sm del">X</button></div>
+  <div class="row"><label>Anzahl</label><input type="range" class="c" min="1" max="60" step="1" value="${count}"><span class="val"></span></div>
+  <div class="row"><label>Blob-Größe</label><input type="range" class="s" min="1" max="10" step="0.5" value="${size}"><span class="val"></span></div>
+  <div class="row"><label>Länge</label><input type="range" class="w" min="0" max="60" step="1" value="${walk}"><span class="val"></span></div>
+  <div class="row"><label>Tiefe min</label><input type="range" class="dn" min="0" max="40" step="1" value="${dmin}"><span class="val"></span></div>
+  <div class="row"><label>Tiefe max</label><input type="range" class="dx" min="1" max="80" step="1" value="${dmax}"><span class="val"></span></div>`;
+  fillSel(d.querySelector('.m'),mat);
+  d.querySelectorAll('input[type=range]').forEach(r=>{
+    const o=r.nextElementSibling; const up=()=>o.textContent=r.value; r.addEventListener('input',up); up();
+  });
+  d.querySelector('.del').onclick=()=>d.remove();
+  $('rules').appendChild(d);
+}
+$('addRule').onclick=()=>addRule(6,8,3,12,2,20);
+addRule(6,10,3,14,1,24);   // Iron_01
+addRule(16,6,3.5,10,0,14); // Ice_01
+addRule(13,3,2,6,14,60);   // Gold_01
+
+function readRules(){
+  return [...document.querySelectorAll('.rule')].map(d=>({
+    mat:+d.querySelector('.m').value, count:+d.querySelector('.c').value,
+    size:+d.querySelector('.s').value, walk:+d.querySelector('.w').value,
+    dmin:+d.querySelector('.dn').value, dmax:+d.querySelector('.dx').value
+  }));
+}
+
+/* ============================ BILD ============================ */
+$('drop').onclick=()=>$('file').click();
+$('drop').ondragover=e=>{e.preventDefault();$('drop').classList.add('hi');};
+$('drop').ondragleave=()=>$('drop').classList.remove('hi');
+$('drop').ondrop=e=>{e.preventDefault();$('drop').classList.remove('hi');loadImg(e.dataTransfer.files[0]);};
+$('file').onchange=e=>loadImg(e.target.files[0]);
+function useImage(img,label){
+  const W=Math.min(512,img.width),H=Math.max(1,Math.round(img.height*W/img.width));
+  const c=document.createElement('canvas'); c.width=W; c.height=H;
+  const g=c.getContext('2d'); g.drawImage(img,0,0,W,H);
+  S.imgData=g.getImageData(0,0,W,H);
+  $('imgprev').src=c.toDataURL(); $('imgprev').style.display='block';
+  $('drop').textContent=label+'  ('+W+'x'+H+')';
+  // verkleinerte Fassung fuer den Projekt-Code
+  const W2=Math.min(192,img.width),H2=Math.max(1,Math.round(img.height*W2/img.width));
+  const c2=document.createElement('canvas'); c2.width=W2; c2.height=H2;
+  c2.getContext('2d').drawImage(img,0,0,W2,H2);
+  S.imgSmall=c2.toDataURL('image/png');
+}
+function setImgFromURL(url){
+  return new Promise(res=>{ const im=new Image();
+    im.onload=()=>{ useImage(im,'AUS PROJEKT-CODE'); res(); };
+    im.onerror=()=>res(); im.src=url; });
+}
+function loadImg(f){
+  if(!f) return;
+  const img=new Image(), url=URL.createObjectURL(f);
+  img.onload=()=>{
+    URL.revokeObjectURL(url);
+    useImage(img,'GELADEN: '+f.name);
+    if($('src').value==='proc') $('src').value='img';
+    $('src').onchange();
+  };
+  img.onerror=()=>{ URL.revokeObjectURL(url); alert('Bild konnte nicht gelesen werden: '+f.name); };
+  img.src=url;
+}
+function sampleImg(u,v){ // u,v in 0..1 → 0..1 grau
+  const d=S.imgData; if(!d) return 0.5;
+  let x=Math.min(d.width-1,Math.max(0,Math.round(u*(d.width-1))));
+  let y=Math.min(d.height-1,Math.max(0,Math.round(v*(d.height-1))));
+  const i=(y*d.width+x)*4;
+  let g=(d.data[i]*0.299+d.data[i+1]*0.587+d.data[i+2]*0.114)/255;
+  if(chk('ialpha')) g*=d.data[i+3]/255;
+  return chk('iinv')?1-g:g;
+}
+
+/* ============================ GENERATOR ============================ */
+function showProg(on,t,p){ $('prog').classList.toggle('on',on); if(t)$('pt').textContent=t; document.querySelector('#bar i').style.width=(p||0)*100+'%'; }
+
+let building=false;
+async function build(){
+  if(building) return;                 // verhindert zwei parallele, sich überlappende Builds
+  building=true; $('build').disabled=true;
+  try{ await buildInner(); }
+  catch(e){ console.error(e); alert('Fehler beim Generieren: '+e.message); }
+  finally{ building=false; $('build').disabled=false; showProg(false); }
+}
+async function buildInner(){
+  const N=parseInt($('res').value);   // S.res erst am Ende setzen, damit ein Abbruch keinen inkonsistenten Zustand hinterlässt
+  const seed=parseInt($('seed').value)|0;
+  const useImg = $('src').value==='img' && S.imgData;
+  const imode=$('imode').value;
+  const radius=num('radius'), SX=num('sx'), SY=num('sy'), SZ=num('sz');
+  const amp=num('amp'), freq=num('freq'), oct=num('oct')|0, gain=num('gain');
+  const crn=num('crn')|0, crs=num('crs'), crv=num('crv');
+  const hollow=chk('hollow'), hr=num('hr'), tun=chk('tun'), td=num('td'), ts=num('ts');
+  const ih=num('ih'), ithr=num('ithr'), iex=num('iex');
+
+  const content=new Uint8Array(N*N*N), mat=new Uint8Array(N*N*N);
+  const sdf=new Float32Array(N*N*N);
+  const c=(N-1)/2;
+  const rng=mulberry(seed);
+  const isIsle = $('src').value==='isle';
+
+  // ===== AUTO-FIT =====
+  // Die Geometrie kann das Gitter locker sprengen (Streckung x Radius x Noise bzw. Kegel-Tiefe).
+  // Dann wird sie am Rand platt abgeschnitten - in der Vorschau UND in jedem Export.
+  // Deshalb vorher analytisch die Ausdehnung bestimmen und alles uniform einskalieren.
+  const rampK=128/Math.max(1,num('smooth'));
+  const limit=N/2-1.5;
+  let R=(N/2-2)*radius, SXv=SX, SYv=SY, fit=1;
+  {
+    let ext;
+    if(isIsle){
+      const mup = ($('mMode').value!=='off') ? num('mH')*N*1.3 : 0;
+      const up=Math.max(0, num('pH')*N + num('pNt')*N + (num('pTr')>0?num('pTr')*num('pTh'):0) + mup);
+      const dn=Math.max(0, -(num('pH')*N - num('pT')*N - num('pNb')*N
+                             - (num('pSn')>0?num('pSl')*N*1.3:0)));
+      const hx=(N/2-3)*num('pR')*Math.max(SX,SZ)*(1+num('pE'));
+      ext=Math.max(hx,up,dn);
+    }else if(useImg && imode==='lathe'){
+      ext=Math.max(R*Math.max(SX,SZ)*(1+amp), (N/2)*SY);
+    }else if(useImg && imode==='extr'){
+      ext=Math.max((N/2)*SX, (N/2)*SY, Math.max(1e-6,iex)*R*SZ*(1+amp));
+    }else{
+      ext=R*Math.max(SX,SY,SZ)*(1+Math.max(0,amp));
+    }
+    if(chk('autofit') && ext>limit) fit=limit/ext;
+    R*=fit; SXv=SX*fit; SYv=SY*fit;
+    S.fit=fit;
+  }
+
+  // Krater vorberechnen
+  const craters=[];
+  for(let i=0;i<crn;i++){
+    const th=rng()*Math.PI*2, ph=Math.acos(2*rng()-1);
+    const rr=R*(1-crv*0.3*rng());
+    craters.push({
+      x:c+Math.sin(ph)*Math.cos(th)*rr*SX, y:c+Math.cos(ph)*rr*SY, z:c+Math.sin(ph)*Math.sin(th)*rr*SZ,
+      r:R*crs*(0.4+rng()*(0.6+crv))
+    });
+  }
+
+  // ===== INSEL: Grundriss + Vertikalprofil vorberechnen =====
+  let sd2=null, topArr=null, botArr=null; const spikes=[];
+  if(isIsle){
+    const pR=num('pR'), pH=num('pH'), pE=num('pE'), pRnd=num('pRnd');
+    const pT=num('pT'), pTe=num('pTe'), pNt=num('pNt'), pNb=num('pNb');
+    const pTr=num('pTr')|0, pTh=num('pTh');
+    const useGr = chk('pImg') && S.imgData;
+    const Rp=(N/2-3)*pR*fit;
+    const mask=new Uint8Array(N*N);
+    sd2=new Float32Array(N*N); let maxD=1;
+    if(useGr){
+      // Bild-Grundriss: Silhouette ist binaer -> Chamfer. Bleibt auf ~0.5 Voxel quantisiert.
+      for(let z=0;z<N;z++)for(let x=0;x<N;x++)
+        mask[x+z*N] = sampleImg(x/(N-1), z/(N-1)) > num('ithr') ? 1 : 0;
+      const din=chamfer(N,mask,0), dout=chamfer(N,mask,1);
+      for(let i=0;i<N*N;i++){ sd2[i]=mask[i]?din[i]:-dout[i]; if(sd2[i]>maxD)maxD=sd2[i]; }
+    }else{
+      // Prozedural: analytisch, exakt subvoxelgenau -> keine Treppen an der Klippenkante.
+      for(let z=0;z<N;z++)for(let x=0;x<N;x++){
+        const i=x+z*N;
+        const dx=(x-c)/SX, dz=(z-c)/SZ;
+        const rad=Math.hypot(dx,dz);
+        const n=fbm(x/N*freq*3,0,z/N*freq*3,oct,seed,gain);
+        const v=Rp*(1+n*pE)-rad;
+        sd2[i]=v; mask[i]= v>0 ? 1 : 0;
+        if(v>maxD) maxD=v;
+      }
+    }
+    // Berge: additive Kegel auf das Plateau
+    const mMode=$('mMode').value, mN=num('mN')|0, mH=num('mH'), mR=num('mR'), mE=num('mE');
+    const mtn=[];
+    if(mMode!=='off'){
+      const mrng=mulberry(seed+31337);
+      if(mMode==='center'){
+        mtn.push({x:c,z:c,h:mH*N*fit,r:Math.max(3,mR*maxD),e:mE});
+      }else{
+        let mt=0;
+        while(mtn.length<mN && mt<5000){
+          mt++;
+          const mx=(mrng()*N)|0, mz=(mrng()*N)|0, i=mx+mz*N;
+          if(!mask[i]) continue;
+          if(sd2[i]/maxD < 0.25) continue;
+          mtn.push({x:mx,z:mz,h:mH*N*fit*(0.5+mrng()*0.8),
+                    r:Math.max(3,mR*maxD*(0.5+mrng()*0.8)),e:mE});
+        }
+      }
+    }
+
+    topArr=new Float32Array(N*N); botArr=new Float32Array(N*N);
+    for(let z=0;z<N;z++)for(let x=0;x<N;x++){
+      const i=x+z*N, sd=sd2[i];
+      const t=Math.max(0,Math.min(1,sd/maxD));
+      const rnd=pRnd*fit;
+      let ty = pH*N*fit + fbm(x/N*freq*5,7.3,z/N*freq*5,oct,seed+17,gain)*pNt*N*fit;
+      if(rnd>0 && sd<rnd) ty -= Math.pow(1-Math.max(0,sd)/rnd,2)*rnd;
+      if(pTr>0) ty += Math.floor(t*pTr)*pTh*fit;
+      for(let k=0;k<mtn.length;k++){
+        const m=mtn[k];
+        const dd=Math.hypot(x-m.x,z-m.z);
+        if(dd<m.r) ty += m.h*Math.pow(1-dd/m.r,m.e);
+      }
+      const by = pH*N*fit - pT*N*fit*Math.pow(t,1/Math.max(0.4,pTe))
+                 - Math.abs(fbm(x/N*freq*4,3.1,z/N*freq*4,oct,seed+91,gain))*pNb*N*fit*t;
+      topArr[i]=ty; botArr[i]=by;
+    }
+    // Wurzeln / Zapfen an der Unterseite
+    const srng=mulberry(seed+7777);
+    const pSn=num('pSn')|0, pSl=num('pSl'), pSr=num('pSr');
+    let tries=0;
+    while(spikes.length<pSn && tries<4000){
+      tries++;
+      const sx=(srng()*N)|0, sz=(srng()*N)|0, i=sx+sz*N;
+      if(!mask[i]) continue;
+      const t=Math.max(0,Math.min(1,sd2[i]/maxD));
+      if(t<0.15) continue;
+      spikes.push({x:sx,z:sz,y0:botArr[i]+2,len:Math.max(3,pSl*N*(0.4+srng()*0.9)*t*fit),r:pSr*(0.5+srng())*fit});
+    }
+  }
+
+  // Lathe-Profil einmal vorberechnen (sonst N^3 * Bildbreite Samples)
+  let latheLUT=null;
+  if(useImg && imode==='lathe'){
+    const M=256; latheLUT=new Float32Array(M);
+    for(let i=0;i<M;i++) latheLUT[i]=latheProfile(i/(M-1),ithr);
+  }
+
+  showProg(true,'GENERIERE FORM…',0);
+  for(let z=0;z<N;z++){
+    if((z&7)===0){ showProg(true,'GENERIERE FORM…',z/N); await new Promise(r=>setTimeout(r)); }
+    for(let y=0;y<N;y++){
+      for(let x=0;x<N;x++){
+        const dx=(x-c)/SX, dy=(y-c)/SY, dz=(z-c)/SZ;
+        const r=Math.sqrt(dx*dx+dy*dy+dz*dz);
+        let surf;
+        if(useImg && imode==='equi'){
+          const nx=r<1e-6?0:dx/r, ny=r<1e-6?1:dy/r, nz=r<1e-6?0:dz/r;
+          const u=(Math.atan2(nz,nx)/(Math.PI*2))+0.5;
+          const v=Math.acos(Math.max(-1,Math.min(1,ny)))/Math.PI;
+          const g=sampleImg(u,v);
+          surf=R*(1-ih*0.5+ih*g);
+        }else{
+          surf=R;
+        }
+        let d;
+        if(isIsle){
+          const i2=x+z*N, h=y-c;
+          d=Math.min(sd2[i2], topArr[i2]-h, h-botArr[i2]);
+          for(let s=0;s<spikes.length;s++){
+            const sp=spikes[s];
+            if(h<sp.y0-sp.len || h>sp.y0) continue;
+            const rl=Math.hypot(x-sp.x,z-sp.z);
+            const tt=Math.min(1,(h-(sp.y0-sp.len))/sp.len);
+            const ds=Math.min(sp.r*tt-rl, sp.y0-h);
+            if(ds>d) d=ds;
+          }
+        }else if(useImg && imode==='lathe'){
+          const v=(y-c)/(N/2*SYv)*0.5+0.5;
+          const rad=Math.sqrt(dx*dx+dz*dz);
+          const li=Math.round(Math.max(0,Math.min(1,v))*255);
+          const prof=latheLUT[li]*R;
+          d = prof - rad;
+          if(v<0||v>1) d=-99;
+        }else if(useImg && imode==='extr'){
+          const u=(x-c)/(N/2*SXv)*0.5+0.5, v=(y-c)/(N/2*SYv)*0.5+0.5;
+          const g=(u<0||u>1||v<0||v>1)?0:sampleImg(u,1-v);
+          const inside=(g>ithr)?1:-1;
+          const halfT=iex*R;
+          const dz2=halfT-Math.abs(dz);
+          d=Math.min(inside*2.0,dz2);
+        }else{
+          d = surf - r;
+        }
+        // Noise
+        if(amp>0 && !isIsle){
+          const nn=fbm((x-c)/N*freq*4,(y-c)/N*freq*4,(z-c)/N*freq*4,oct,seed,gain);
+          d += nn*amp*R;
+        }
+        // Krater
+        for(let i=0;i<craters.length;i++){
+          const k=craters[i];
+          const kd=Math.sqrt((x-k.x)**2+(y-k.y)**2+(z-k.z)**2)-k.r;
+          if(kd<d) d=kd;
+        }
+        // Hohlkern
+        if(hollow){
+          const hh=r-R*hr*(1+0.15*fbm(x/9,y/9,z/9,2,seed+555,0.5));
+          if(hh<d) d=hh;
+        }
+        // Tunnel
+        if(tun){
+          const w=Math.abs(fbm(x/(N*td*3.2),y/(N*td*3.2),z/(N*td*3.2),3,seed+911,0.5));
+          const tv=(w-0.06)*ts*8;
+          if(tv<d) d=tv;
+        }
+        const idx=x+N*(y+N*z);
+        sdf[idx]=d;
+        // Breitere SDF-Rampe (Faktor ~128/smooth) gibt der SE-Isosurface genug
+        // Gradient zum Glaetten. Faktor 128 (smooth=1) = 1-Voxel-Band = Wuerfel.
+        content[idx]=Math.max(0,Math.min(255,Math.round(d*rampK+128)));
+      }
+    }
+  }
+
+  // ===== MATERIAL =====
+  showProg(true,'VERTEILE MATERIAL…',0);
+  const core=+$('mCore').value, crust=+$('mCrust').value, crustD=num('crustD'), crustN=num('crustN');
+  for(let z=0;z<N;z++){
+    for(let y=0;y<N;y++){
+      for(let x=0;x<N;x++){
+        const idx=x+N*(y+N*z);
+        if(content[idx]<10){ mat[idx]=0; continue; }
+        let depth=sdf[idx];
+        if(crustN>0) depth+=fbm(x/7,y/7,z/7,3,seed+321,0.5)*crustN;
+        mat[idx]=(crustD>0 && depth<crustD)?crust:core;
+      }
+    }
+  }
+  // Deckschicht (Gras/Erde): oberstes Voxel einer Saeule mit freiem Himmel, Normale muss nach oben zeigen
+  if(chk('topOn')){
+    const mTop=+$('mTop').value, mSub=+$('mSub').value;
+    const topD=num('topD')|0, subD=num('subD')|0;
+    const solidAt=(x,y,z)=>(x<0||y<0||z<0||x>=N||y>=N||z>=N)?false:content[x+N*(y+N*z)]>=128;
+    const at=(x,y,z)=>sdf[x+N*(y+N*z)];
+    // Steilheit aus dem SDF-Gradient: 1 = senkrechte Wand, 0 = flach.
+    const steep=(x,y,z)=>{
+      const gy=-(((y<N-1)?at(x,y+1,z):-99)-((y>0)?at(x,y-1,z):99))*0.5;
+      const gx=-(((x<N-1)?at(x+1,y,z):0)-((x>0)?at(x-1,y,z):0))*0.5;
+      const gz=-(((z<N-1)?at(x,y,z+1):0)-((z>0)?at(x,y,z-1):0))*0.5;
+      const l=Math.hypot(gx,gy,gz); if(l<1e-6) return 0;
+      return 1-Math.max(0,gy/l);   // horizontaler Gradientanteil
+    };
+    const slopeOn=chk('slopeOn'), slope=num('slope');
+    const snowOn=chk('snowOn'), mSnow=+$('mSnow').value, snowY=num('snowY')*N*(S.fit||1);
+    const snowN=num('edgeR')*N*0.06;
+    // Deckschicht per VOXEL: jedes solide Voxel mit Luft direkt darueber ist "Oberflaeche"
+    // und wird bedeckt -> auch die schmalen Terrassen-/Bergabsaetze. Kein Saeulen-Veto mehr.
+    for(let z=0;z<N;z++)for(let x=0;x<N;x++){
+      for(let y=N-1;y>=0;y--){
+        const i=x+N*(y+N*z);
+        if(content[i]<128) continue;
+        if(!solidAt(x,y+1,z)){   // Himmel direkt darueber = Oberflaeche
+          if(slopeOn && steep(x,y,z) > slope) continue;   // steile Wand bleibt Stein
+          const snow = snowOn && (y-c) > snowY + fbm(x/6,0,z/6,3,seed+404,0.5)*snowN;
+          const mTopHere = snow ? mSnow : mTop;
+          for(let d=0; d<topD+subD && y-d>=0; d++){
+            const j=x+N*((y-d)+N*z);
+            if(content[j]<128) break;
+            mat[j] = d<topD ? mTopHere : mSub;
+          }
+        }
+      }
+    }
+  }
+
+  // Adern
+  const rules=readRules(); const orng=mulberry(parseInt($('oreSeed').value)|0);
+  const edgeR=num('edgeR');
+  {
+    for(const ru of rules){
+      for(let k=0;k<ru.count;k++){
+        // Startpunkt in erlaubtem Tiefenband suchen
+        let px=0,py=0,pz=0,ok=false;
+        for(let t=0;t<6000;t++){
+          const xx=(orng()*N)|0, yy=(orng()*N)|0, zz=(orng()*N)|0;
+          const si=xx+N*(yy+N*zz);
+          if(content[si]<128) continue;
+          const dep=sdf[si];
+          if(dep>=ru.dmin && dep<=ru.dmax){ px=xx;py=yy;pz=zz;ok=true;break; }
+        }
+        if(!ok) continue;
+        let vx=orng()*2-1, vy=orng()*2-1, vz=orng()*2-1;
+        const steps=Math.max(1,ru.walk);
+        for(let s=0;s<steps;s++){
+          stamp(mat,content,N,px,py,pz,ru.size*(0.6+orng()*0.8),ru.mat,seed+ru.mat*77,edgeR);
+          vx+=(orng()*2-1)*0.5; vy+=(orng()*2-1)*0.5; vz+=(orng()*2-1)*0.5;
+          const l=Math.hypot(vx,vy,vz)||1;
+          px+=vx/l*ru.size*0.7; py+=vy/l*ru.size*0.7; pz+=vz/l*ru.size*0.7;
+          if(px<0||py<0||pz<0||px>=N||py>=N||pz>=N) break;
+        }
+      }
+    }
+  }
+
+  S.res=N; S.content=content; S.mat=mat;
+  showProg(true,'BAUE MESH…',0.9);
+  await new Promise(r=>setTimeout(r,10));
+  makeMesh(); updateHud();
+  if(topoOn) drawTopo();
+  showProg(false);
+}
+
+function latheProfile(v,thr){
+  // v: 0 (unten) .. 1 (oben) → halbe Breite der Silhouette, normiert 0..1
+  const d=S.imgData; if(!d) return 0.5;
+  const y=Math.min(d.height-1,Math.max(0,Math.round((1-v)*(d.height-1))));
+  let l=-1,r=-1;
+  for(let x=0;x<d.width;x++){ if(sampleImg(x/(d.width-1),y/(d.height-1))>thr){ if(l<0)l=x; r=x; } }
+  if(l<0) return 0;
+  return (r-l)/2/(d.width/2);
+}
+
+// Harte Kugelkante rastet auf Voxelgrenzen ein -> Treppenstufen, besonders auf flachen
+// Oberflaechen. Der Radius wird deshalb per Noise pro Richtung moduliert.
+function stamp(mat,content,N,cx,cy,cz,rad,m,sd,rough){
+  const r=Math.max(1,rad);
+  const rmax=r*(1+rough);
+  const x0=Math.max(0,Math.floor(cx-rmax)),x1=Math.min(N-1,Math.ceil(cx+rmax));
+  const y0=Math.max(0,Math.floor(cy-rmax)),y1=Math.min(N-1,Math.ceil(cy+rmax));
+  const z0=Math.max(0,Math.floor(cz-rmax)),z1=Math.min(N-1,Math.ceil(cz+rmax));
+  const f=1.6/Math.max(2,r);
+  for(let z=z0;z<=z1;z++)for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
+    const d=Math.sqrt((x-cx)**2+(y-cy)**2+(z-cz)**2);
+    if(d>rmax) continue;
+    const edge = rough>0 ? r*(1+rough*fbm(x*f,y*f,z*f,3,sd,0.5)) : r;
+    if(d<=edge){ const i=x+N*(y+N*z); if(content[i]>=128) mat[i]=m; }
+  }
+}
+
+/* ============================ THREE ============================ */
+let renderer,scene,cam,mesh,theta=0.7,phi=1.1,dist=140,target;
+function initGL(){
+  const cv=$('cv');
+  renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true,preserveDrawingBuffer:true});
+  renderer.setPixelRatio(Math.min(2,devicePixelRatio));
+  scene=new THREE.Scene(); scene.background=new THREE.Color(0x070b10);
+  scene.fog=new THREE.Fog(0x070b10,200,700);
+  cam=new THREE.PerspectiveCamera(45,1,0.5,3000);
+  target=new THREE.Vector3(0,0,0);
+  scene.add(new THREE.AmbientLight(0x3a5a70,0.9));
+  const d1=new THREE.DirectionalLight(0xffffff,1.15); d1.position.set(1,1.2,0.8); scene.add(d1);
+  const d2=new THREE.DirectionalLight(0x00cfff,0.45); d2.position.set(-1,-0.4,-1); scene.add(d2);
+  const stars=new THREE.BufferGeometry(); const sp=[];
+  for(let i=0;i<900;i++){const r=900;const t=Math.random()*Math.PI*2,p=Math.acos(2*Math.random()-1);
+    sp.push(r*Math.sin(p)*Math.cos(t),r*Math.cos(p),r*Math.sin(p)*Math.sin(t));}
+  stars.setAttribute('position',new THREE.Float32BufferAttribute(sp,3));
+  scene.add(new THREE.Points(stars,new THREE.PointsMaterial({color:0x8fb8cc,size:1.6,sizeAttenuation:false})));
+  resize(); window.addEventListener('resize',resize);
+  // Orbit
+  let drag=false,lx=0,ly=0;
+  cv.addEventListener('pointerdown',e=>{drag=true;lx=e.clientX;ly=e.clientY;cv.setPointerCapture(e.pointerId);});
+  cv.addEventListener('pointerup',e=>drag=false);
+  cv.addEventListener('pointercancel',e=>drag=false);
+  cv.addEventListener('pointermove',e=>{if(!drag)return;
+    theta-=(e.clientX-lx)*0.008; phi=Math.max(0.05,Math.min(Math.PI-0.05,phi-(e.clientY-ly)*0.008));
+    lx=e.clientX;ly=e.clientY;});
+  cv.addEventListener('wheel',e=>{e.preventDefault();dist=Math.max(12,Math.min(900,dist*(1+Math.sign(e.deltaY)*0.1)));},{passive:false});
+  loop();
+}
+function resize(){
+  const v=$('view'); renderer.setSize(v.clientWidth,v.clientHeight,false);
+  cam.aspect=v.clientWidth/v.clientHeight; cam.updateProjectionMatrix();
+}
+function loop(){
+  requestAnimationFrame(loop);
+  cam.position.set(target.x+dist*Math.sin(phi)*Math.cos(theta),target.y+dist*Math.cos(phi),target.z+dist*Math.sin(phi)*Math.sin(theta));
+  cam.lookAt(target); renderer.render(scene,cam);
+}
+$('reset').onclick=()=>{theta=0.7;phi=1.1;dist=S.res*2.2;};
+
+const FACES=[
+ {d:[1,0,0],v:[[1,0,0],[1,1,0],[1,1,1],[1,0,1]]},
+ {d:[-1,0,0],v:[[0,0,1],[0,1,1],[0,1,0],[0,0,0]]},
+ {d:[0,1,0],v:[[0,1,1],[1,1,1],[1,1,0],[0,1,0]]},
+ {d:[0,-1,0],v:[[0,0,0],[1,0,0],[1,0,1],[0,0,1]]},
+ {d:[0,0,1],v:[[1,0,1],[1,1,1],[0,1,1],[0,0,1]]},
+ {d:[0,0,-1],v:[[0,0,0],[0,1,0],[1,1,0],[1,0,0]]}
+];
+function makeMesh(){
+  if(mesh){scene.remove(mesh);mesh.geometry.dispose();mesh.material.dispose();mesh=null;}
+  const N=S.res,ct=S.content,mt=S.mat;
+  const st=N>128?Math.ceil(N/128):1;          // Vorschau-Dezimierung
+  const M=Math.floor(N/st);
+  const pos=[],nor=[],col=[],idx=[];
+  const pal=MATERIALS.map(m=>hex2rgb(m.c).map(v=>v/255));
+  const gi=(x,y,z)=>(x*st)+N*((y*st)+N*(z*st));
+  const solid=(x,y,z)=>(x<0||y<0||z<0||x>=M||y>=M||z>=M)?false:ct[gi(x,y,z)]>=128;
+  let vi=0;
+  for(let z=0;z<M;z++)for(let y=0;y<M;y++)for(let x=0;x<M;x++){
+    const i=gi(x,y,z); if(ct[i]<128) continue;
+    const m=mt[i]||1; const cc=pal[m-1]||[0.5,0.5,0.5];
+    for(const f of FACES){
+      if(solid(x+f.d[0],y+f.d[1],z+f.d[2])) continue;
+      for(const v of f.v){ pos.push((x+v[0])*st-N/2,(y+v[1])*st-N/2,(z+v[2])*st-N/2); nor.push(f.d[0],f.d[1],f.d[2]); col.push(cc[0],cc[1],cc[2]); }
+      idx.push(vi,vi+1,vi+2,vi,vi+2,vi+3); vi+=4;
+    }
+  }
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  g.setAttribute('normal',new THREE.Float32BufferAttribute(nor,3));
+  g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
+  g.setIndex(idx);
+  mesh=new THREE.Mesh(g,new THREE.MeshLambertMaterial({vertexColors:true}));
+  scene.add(mesh); dist=N*2.2; S.decim=st;
+}
+
+// Zaehlt solide Voxel auf den 6 Gitteraussenflaechen -> dort ist das Objekt abgeschnitten.
+function clipCheck(){
+  const N=S.res, ct=S.content; let hit=0;
+  const t=(x,y,z)=>{ if(ct[x+N*(y+N*z)]>=128) hit++; };
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){ t(x,y,0); t(x,y,N-1); }
+  for(let z=1;z<N-1;z++)for(let x=0;x<N;x++){ t(x,0,z); t(x,N-1,z); }
+  for(let z=1;z<N-1;z++)for(let y=1;y<N-1;y++){ t(0,y,z); t(N-1,y,z); }
+  return hit;
+}
+function updateHud(){
+  const N=S.res; let solid=0; const cnt={};
+  for(let i=0;i<N*N*N;i++) if(S.content[i]>=128){ solid++; const m=S.mat[i]; cnt[m]=(cnt[m]||0)+1; }
+  const fill=(solid/(N*N*N)*100).toFixed(1);
+  if(!solid){ $('hud').innerHTML=`<b>GITTER</b> ${N}³ (${N} m)<br><b style="color:var(--or)">LEER</b> — keine Voxel erzeugt`; $('legend').innerHTML='<div class="note">leer</div>'; return; }
+  const clip=clipCheck();
+  let h=`<b>GITTER</b> ${N}³ (${N} m)<br><b>VOXEL</b> ${solid.toLocaleString('de')}<br><b>FÜLLUNG</b> ${fill} %<br><b>MASSE~</b> ${(solid*2.7/1000).toFixed(1)} kt`;
+  if(S.fit && S.fit<0.999) h+=`<br><b style="color:var(--or)">AUTO-FIT</b> ×${S.fit.toFixed(3)}`;
+  if(S.decim>1) h+=`<br><b style="color:var(--dim)">VORSCHAU</b> 1:${S.decim}`;
+  if(clip>0) h+=`<br><b style="color:var(--rd)">ABGESCHNITTEN</b> ${clip.toLocaleString('de')} Voxel am Rand`;
+  $('hud').innerHTML=h;
+  const rows=Object.entries(cnt).sort((a,b)=>b[1]-a[1]).map(([m,v])=>{
+    const md=MATERIALS[m-1]; if(!md) return '';
+    return `<div class="lg"><div class="sw" style="background:${md.c}"></div>${md.n} — ${(v/solid*100).toFixed(1)}%</div>`;
+  }).join('');
+  $('legend').innerHTML=rows||'<div class="note">leer</div>';
+}
+
+/* ============================ TOPOGRAFIE ============================ */
+// Draufsicht: Hoehe der obersten festen Voxel je Saeule, bilinear interpoliert,
+// Farbrampe + Hoehenlinien + Material des Deckvoxels als Tint.
+const RAMP=[[0,'#123a5e'],[0.18,'#1d6b4a'],[0.38,'#4e8a35'],[0.55,'#9aa53a'],
+            [0.72,'#a8763c'],[0.87,'#8a6a5a'],[1,'#f2f6fa']];
+function rampCol(t){
+  t=Math.max(0,Math.min(1,t));
+  for(let i=1;i<RAMP.length;i++){
+    if(t<=RAMP[i][0]){
+      const a=RAMP[i-1],b=RAMP[i];
+      const k=(t-a[0])/((b[0]-a[0])||1);
+      const ca=hex2rgb(a[1]),cb=hex2rgb(b[1]);
+      return [ca[0]+(cb[0]-ca[0])*k, ca[1]+(cb[1]-ca[1])*k, ca[2]+(cb[2]-ca[2])*k];
+    }
+  }
+  return hex2rgb(RAMP[RAMP.length-1][1]);
+}
+let topoOn=false;
+function drawTopo(){
+  if(!S.content) return;
+  const N=S.res, ct=S.content, mt=S.mat;
+  const cv=$('topo'), v=$('view');
+  const W=v.clientWidth, H=v.clientHeight;
+  cv.width=W; cv.height=H;
+  const g=cv.getContext('2d');
+  g.fillStyle='#070b10'; g.fillRect(0,0,W,H);
+
+  // Hoehenkarte + Deckmaterial
+  const hm=new Float32Array(N*N), tm=new Uint8Array(N*N);
+  let hi=-1e9, lo=1e9, any=false;
+  for(let z=0;z<N;z++)for(let x=0;x<N;x++){
+    let h=NaN, m=0;
+    for(let y=N-1;y>=0;y--){
+      const i=x+N*(y+N*z);
+      if(ct[i]>=128){ h=y+(ct[i]-128)/127; m=mt[i]; break; }
+    }
+    hm[x+z*N]=h; tm[x+z*N]=m;
+    if(!isNaN(h)){ any=true; if(h>hi)hi=h; if(h<lo)lo=h; }
+  }
+  if(!any){ $('tinfo').innerHTML='<b>keine Geometrie</b>'; return; }
+  if(hi-lo<1e-6) hi=lo+1;
+
+  const scale=parseInt($('vscale').value);
+  const px=Math.min(W,H)*0.92, ox=(W-px)/2, oy=(H-px)/2;
+  const img=g.createImageData(Math.round(px),Math.round(px));
+  const P=img.width;
+  const step=Math.max(1,Math.round((hi-lo)/14));
+  const sample=(fx,fz)=>{
+    const x0=Math.floor(fx), z0=Math.floor(fz);
+    const tx=fx-x0, tz=fz-z0;
+    const at=(x,z)=>(x<0||z<0||x>=N||z>=N)?NaN:hm[x+z*N];
+    const a=at(x0,z0),b=at(x0+1,z0),cc=at(x0,z0+1),d=at(x0+1,z0+1);
+    if(isNaN(a)||isNaN(b)||isNaN(cc)||isNaN(d)) return NaN;
+    return (a*(1-tx)+b*tx)*(1-tz)+(cc*(1-tx)+d*tx)*tz;
+  };
+  for(let py=0;py<P;py++){
+    for(let pxi=0;pxi<P;pxi++){
+      const fx=pxi/P*(N-1), fz=py/P*(N-1);
+      const h=sample(fx,fz);
+      const o=(py*P+pxi)*4;
+      if(isNaN(h)){ img.data[o]=7; img.data[o+1]=11; img.data[o+2]=16; img.data[o+3]=255; continue; }
+      const t=(h-lo)/(hi-lo);
+      let col=rampCol(t);
+      // Material-Tint
+      const md=MATERIALS[(tm[Math.min(N-1,Math.round(fx))+Math.min(N-1,Math.round(fz))*N]||1)-1];
+      if(md){ const mc=hex2rgb(md.c); col=[col[0]*0.62+mc[0]*0.38, col[1]*0.62+mc[1]*0.38, col[2]*0.62+mc[2]*0.38]; }
+      // Hoehenlinien
+      const h2=sample(Math.min(N-1.001,fx+(N-1)/P), fz);
+      const h3=sample(fx, Math.min(N-1.001,fz+(N-1)/P));
+      const b1=Math.floor((h-lo)/step);
+      const iso=(!isNaN(h2)&&Math.floor((h2-lo)/step)!==b1)||(!isNaN(h3)&&Math.floor((h3-lo)/step)!==b1);
+      // Schummerung aus dem Gefaelle
+      const sh=isNaN(h2)?0:Math.max(-1,Math.min(1,(h-h2)*0.6));
+      const k=iso?0.42:(1+sh*0.28);
+      img.data[o]=Math.max(0,Math.min(255,col[0]*k));
+      img.data[o+1]=Math.max(0,Math.min(255,col[1]*k));
+      img.data[o+2]=Math.max(0,Math.min(255,col[2]*k));
+      img.data[o+3]=255;
+    }
+  }
+  g.putImageData(img,Math.round(ox),Math.round(oy));
+  g.strokeStyle='#1c2a38'; g.strokeRect(Math.round(ox),Math.round(oy),P,P);
+
+  const grad=[]; for(let i=0;i<=6;i++){ const c=rampCol(i/6); grad.push('rgb('+c.map(Math.round).join(',')+')'); }
+  $('tinfo').innerHTML =
+    '<b style="color:var(--cy);font-family:Orbitron;font-size:10px">TOPOGRAFIE</b><br>'+
+    '<div class="ramp" style="background:linear-gradient(90deg,'+grad.join(',')+')"></div>'+
+    (lo*scale).toFixed(0)+' m &nbsp;→&nbsp; '+(hi*scale).toFixed(0)+' m<br>'+
+    'Höhenlinie alle '+(step*scale)+' m<br>'+
+    'Spanne '+((hi-lo)*scale).toFixed(0)+' m';
+}
+$('mode3d').onclick=()=>{
+  topoOn=!topoOn;
+  $('topo').classList.toggle('on',topoOn);
+  $('tinfo').classList.toggle('on',topoOn);
+  $('legend').style.display=topoOn?'none':'block';
+  $('mode3d').textContent=topoOn?'3D':'TOPO';
+  if(topoOn) drawTopo();
+};
+window.addEventListener('resize',()=>{ if(topoOn) drawTopo(); });
+
+/* ============================ EXPORT ============================ */
+function dl(name,data,type){
+  const b=new Blob([data],{type:type||'application/octet-stream'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+}
+function need(){
+  if(building){alert('Generierung läuft noch.');return false;}
+  if(!S.content){alert('Erst GENERIEREN.');return false;}
+  return true;
+}
+
+/* --- Minimaler ZIP-Writer (store, keine Kompression) --- */
+function crc32(u8){
+  let t=crc32.t;
+  if(!t){ t=crc32.t=new Int32Array(256);
+    for(let n=0;n<256;n++){ let c=n; for(let k=0;k<8;k++) c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1); t[n]=c; } }
+  let crc=-1;
+  for(let i=0;i<u8.length;i++) crc=(crc>>>8)^t[(crc^u8[i])&0xFF];
+  return (crc^-1)>>>0;
+}
+function zipFile(files){
+  const enc=new TextEncoder(), parts=[], central=[];
+  let off=0;
+  for(const f of files){
+    const name=enc.encode(f.name);
+    const data=(typeof f.data==='string')?enc.encode(f.data):f.data;
+    const crc=crc32(data);
+    const lh=new Uint8Array(30+name.length), dv=new DataView(lh.buffer);
+    dv.setUint32(0,0x04034b50,true); dv.setUint16(4,20,true);
+    dv.setUint32(14,crc,true); dv.setUint32(18,data.length,true); dv.setUint32(22,data.length,true);
+    dv.setUint16(26,name.length,true);
+    lh.set(name,30);
+    parts.push(lh,data);
+    const ch=new Uint8Array(46+name.length), cv=new DataView(ch.buffer);
+    cv.setUint32(0,0x02014b50,true); cv.setUint16(4,20,true); cv.setUint16(6,20,true);
+    cv.setUint32(16,crc,true); cv.setUint32(20,data.length,true); cv.setUint32(24,data.length,true);
+    cv.setUint16(28,name.length,true); cv.setUint32(42,off,true);
+    ch.set(name,46);
+    central.push(ch);
+    off+=lh.length+data.length;
+  }
+  let cdSize=0; central.forEach(c=>cdSize+=c.length);
+  const eo=new Uint8Array(22), ev=new DataView(eo.buffer);
+  ev.setUint32(0,0x06054b50,true);
+  ev.setUint16(8,files.length,true); ev.setUint16(10,files.length,true);
+  ev.setUint32(12,cdSize,true); ev.setUint32(16,off,true);
+  const all=parts.concat(central,[eo]);
+  let n=0; all.forEach(a=>n+=a.length);
+  const out=new Uint8Array(n); let p=0;
+  all.forEach(a=>{ out.set(a,p); p+=a.length; });
+  return out;
+}
+
+/* --- Projekt-Code: kompletter Zustand, nicht nur der Seed --- */
+function collectState(){
+  const st={v:1,ctl:{},rules:readRules(),custom:MATERIALS.slice(BASE_MATERIALS.length).map(m=>m.n)};
+  document.querySelectorAll('#panes input,#panes select').forEach(e=>{
+    if(!e.id||e.type==='file'||e.id==='pcode'||e.id==='custom') return;
+    st.ctl[e.id]=(e.type==='checkbox')?(e.checked?1:0):e.value;
+  });
+  if(chk('embImg') && S.imgSmall) st.img=S.imgSmall;
+  return st;
+}
+function stateCode(){
+  return 'AST2SE1:'+btoa(unescape(encodeURIComponent(JSON.stringify(collectState()))));
+}
+async function applyCode(code){
+  code=(code||'').trim();
+  const i=code.indexOf('AST2SE1:');
+  if(i<0){ alert('Kein gueltiger Projekt-Code. Muss AST2SE1: enthalten.'); return; }
+  let st;
+  try{ st=JSON.parse(decodeURIComponent(escape(atob(code.slice(i+8).replace(/\s+/g,''))))); }
+  catch(e){ alert('Projekt-Code beschaedigt: '+e.message); return; }
+  (st.custom||[]).forEach(n=>{ if(!MATERIALS.some(m=>m.n===n)) MATERIALS.push({n:n,c:AUTO_COL(MATERIALS.length)}); });
+  $('rules').innerHTML='';
+  (st.rules||[]).forEach(r=>addRule(r.mat,r.count,r.size,r.walk,r.dmin,r.dmax));
+  refreshSels();
+  for(const id in st.ctl){
+    const e=$(id); if(!e) continue;
+    if(e.type==='checkbox') e.checked=!!(+st.ctl[id]); else e.value=st.ctl[id];
+    e.dispatchEvent(new Event('input'));
+  }
+  if(st.img) await setImgFromURL(st.img);
+  $('src').onchange();
+  updSize();
+  build();
+}
+$('pcSave').onclick=()=>{
+  const c=stateCode();
+  $('pcode').value=c;
+  $('pcode').select();
+  try{ navigator.clipboard.writeText(c).catch(()=>{ try{ document.execCommand('copy'); }catch(e2){} }); }catch(e){ try{ document.execCommand('copy'); }catch(e2){} }
+  $('pcSave').textContent='KOPIERT ('+c.length+' Z.)';
+  setTimeout(()=>$('pcSave').textContent='ERZEUGEN + KOPIEREN',1600);
+};
+$('pcLoad').onclick=()=>applyCode($('pcode').value);
+
+/* --- RLE (varint count, content, material) --- */
+function rle(content,mat){
+  const out=[]; let i=0; const n=content.length;
+  while(i<n){
+    const c=content[i],m=mat[i]; let j=i+1;
+    while(j<n && content[j]===c && mat[j]===m && j-i<0xFFFFFF) j++;
+    let cnt=j-i;
+    while(cnt>=0x80){ out.push((cnt&0x7F)|0x80); cnt>>>=7; }
+    out.push(cnt); out.push(c); out.push(m);
+    i=j;
+  }
+  return new Uint8Array(out);
+}
+function b64(u8){ let s=''; const CH=0x8000;
+  for(let i=0;i<u8.length;i+=CH) s+=String.fromCharCode.apply(null,u8.subarray(i,i+CH));
+  return btoa(s);
+}
+function padPow2(){
+  const N=S.res; let P=64; while(P<N) P*=2;
+  if(P===N) return {P,content:S.content,mat:S.mat};
+  const off=Math.floor((P-N)/2);
+  const c=new Uint8Array(P*P*P), m=new Uint8Array(P*P*P);
+  for(let z=0;z<N;z++)for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    const s=x+N*(y+N*z), d=(x+off)+P*((y+off)+P*(z+off));
+    c[d]=S.content[s]; m[d]=S.mat[s];
+  }
+  return {P,content:c,mat:m};
+}
+
+/* --- .VOX --- */
+$('eVox').onclick=()=>{ if(!need())return;
+  const N=S.res; if(N>256){alert('.vox max 256³');return;}
+  const xyzi=[];
+  for(let z=0;z<N;z++)for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    const i=x+N*(y+N*z); if(S.content[i]<128) continue;
+    xyzi.push(x,N-1-z,y,S.mat[i]); // MagicaVoxel ist Z-up; (x,-z,y) ist eine Drehung, kein Spiegel
+  }
+  const nV=xyzi.length/4;
+  const chunk=(id,cont,child)=>{
+    const b=new Uint8Array(12+cont.length+ (child?child.length:0));
+    const dv=new DataView(b.buffer);
+    for(let i=0;i<4;i++) b[i]=id.charCodeAt(i);
+    dv.setInt32(4,cont.length,true); dv.setInt32(8,child?child.length:0,true);
+    b.set(cont,12); if(child) b.set(child,12+cont.length);
+    return b;
+  };
+  const i32=v=>{const b=new Uint8Array(4);new DataView(b.buffer).setInt32(0,v,true);return b;};
+  const cat=arrs=>{let n=0;arrs.forEach(a=>n+=a.length);const o=new Uint8Array(n);let p=0;arrs.forEach(a=>{o.set(a,p);p+=a.length;});return o;};
+  const size=chunk('SIZE',cat([i32(N),i32(N),i32(N)]));
+  const xy=new Uint8Array(4+nV*4); new DataView(xy.buffer).setInt32(0,nV,true);
+  for(let i=0;i<nV;i++){ xy[4+i*4]=xyzi[i*4]; xy[5+i*4]=xyzi[i*4+1]; xy[6+i*4]=xyzi[i*4+2]; xy[7+i*4]=xyzi[i*4+3]; }
+  const xyz=chunk('XYZI',xy);
+  const rgba=new Uint8Array(1024);
+  for(let i=0;i<256;i++){ const m=MATERIALS[i]; const c=m?hex2rgb(m.c):[80,80,80];
+    rgba[i*4]=c[0];rgba[i*4+1]=c[1];rgba[i*4+2]=c[2];rgba[i*4+3]=255; }
+  const pal=chunk('RGBA',rgba);
+  const children=cat([size,xyz,pal]);
+  const main=chunk('MAIN',new Uint8Array(0),children);
+  const hdr=new Uint8Array(8); 'VOX '.split('').forEach((ch,i)=>hdr[i]=ch.charCodeAt(0));
+  new DataView(hdr.buffer).setInt32(4,150,true);
+  dl('asteroid_'+$('seed').value+'.vox',cat([hdr,main]));
+};
+
+/* --- .OBJ --- */
+$('eObj').onclick=()=>{ if(!need())return;
+  const N=S.res,ct=S.content,mt=S.mat;
+  const solid=(x,y,z)=>(x<0||y<0||z<0||x>=N||y>=N||z>=N)?false:ct[x+N*(y+N*z)]>=128;
+  let v='',f='',vi=1; const groups={};
+  for(let z=0;z<N;z++)for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    const i=x+N*(y+N*z); if(ct[i]<128) continue;
+    const m=MATERIALS[(mt[i]||1)-1].n;
+    for(const fc of FACES){
+      if(solid(x+fc.d[0],y+fc.d[1],z+fc.d[2])) continue;
+      for(const p of fc.v) v+='v '+(x+p[0]-N/2)+' '+(y+p[1]-N/2)+' '+(z+p[2]-N/2)+'\n';
+      (groups[m]=groups[m]||[]).push(vi+' '+(vi+1)+' '+(vi+2)+' '+(vi+3)); vi+=4;
+    }
+  }
+  // Leerzeichen in Gruppennamen würden "g" in mehrere Gruppen zerlegen
+  for(const m in groups){ f+='g '+m.replace(/\s+/g,'_')+'\nusemtl '+m+'\n'; groups[m].forEach(q=>f+='f '+q+'\n'); }
+  let mtl='';
+  for(const m in groups){ const c=hex2rgb(MATERIALS.find(x=>x.n===m).c).map(x=>(x/255).toFixed(3));
+    mtl+='newmtl '+m+'\nKd '+c.join(' ')+'\n\n'; }
+  const base='asteroid_'+$('seed').value;
+  dl(base+'_obj.zip', zipFile([
+    {name:base+'.obj','data':'# AST2SE\nmtllib asteroid.mtl\n'+v+f},
+    {name:'asteroid.mtl',data:mtl},
+    {name:'projekt.a2s',data:stateCode()}
+  ]),'application/zip');
+};
+
+/* --- .JSON --- */
+$('eJson').onclick=()=>{ if(!need())return;
+  const p=padPow2();
+  const o={
+    tool:'AST2SE', version:1, seed:+$('seed').value,
+    grid:S.res, storage:p.P, order:'x_fastest_then_y_then_z',
+    palette:MATERIALS.map((m,i)=>({index:i+1,subtype:m.n,color:m.c})),
+    encoding:'rle(varint count, byte content, byte material) -> base64',
+    data:b64(rle(p.content,p.mat))
+  };
+  dl('asteroid_'+$('seed').value+'.json',JSON.stringify(o,null,1),'application/json');
+};
+
+/* --- PNG --- */
+$('ePng').onclick=()=>{ renderer.render(scene,cam); $('cv').toBlob(b=>{
+  const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='asteroid_preview.png';a.click();}); };
+
+/* --- SE MOD: generische .cs + benannte Datendateien --- */
+function astName(){
+  const n=($('aname').value||'').trim().replace(/[^A-Za-z0-9_-]/g,'');
+  return n||('Asteroid_'+$('seed').value);
+}
+
+// Datendatei: Kopfzeilen + RLE-base64. SIZE und MATS stehen HIER drin, nicht im Code,
+// damit eine einzige .cs beliebig viele Asteroiden mit verschiedenen Aufloesungen laedt.
+function dataFileText(){
+  const p=padPow2(); const data=b64(rle(p.content,p.mat));
+  const used=new Set(); for(let i=0;i<p.mat.length;i++) if(p.mat[i]) used.add(p.mat[i]);
+  const maxM=used.size?Math.max.apply(null,[...used]):1;
+  const names=[]; for(let i=1;i<=maxM;i++) names.push(MATERIALS[i-1]?MATERIALS[i-1].n:'Stone_01');
+  return 'AST2SE 1\n'
+       + 'NAME ' + astName() + '\n'
+       + 'SIZE ' + p.P + '\n'
+       + 'SCALE ' + $('vscale').value + '\n'
+       + 'SEED ' + $('seed').value + '\n'
+       + 'MATS ' + names.join(',') + '\n'
+       + 'DATA ' + data + '\n';
+}
+
+function modSource(){
+  return [
+'using System;',
+'using System.Collections.Generic;',
+'using System.IO;',
+'using System.Text;',
+'using Sandbox.Definitions;',
+'using Sandbox.ModAPI;',
+'using VRage.Game;',
+'using VRage.Game.Components;',
+'using VRage.Game.ModAPI;',
+'using VRage.Input;',
+'using VRage.ModAPI;',
+'using VRage.Utils;',
+'using VRage.Voxels;',
+'using VRageMath;',
+'',
+'namespace Ast2Se',
+'{',
+'    // AST2SE — Spawner mit Platzierungsmodus.',
+'    //   /ast            -> Platzierungsmodus mit DEFAULT_NAME',
+'    //   /ast Glacier    -> Platzierungsmodus mit Asteroids/Glacier.b64',
+'    //   /ast Glacier now-> sofort vor dem Spieler, ohne Platzierung',
+'    // Im Platzierungsmodus:',
+'    //   W/S  vor/zurueck    A/D  links/rechts   R/F  hoch/runter',
+'    //   Q/E  drehen Yaw     Z/X  Distanz        Shift = 5x schneller',
+'    //   ENTER bestaetigen   BACKSPACE abbrechen',
+'    [MySessionComponentDescriptor(MyUpdateOrder.BeforeSimulation)]',
+'    public class Ast2SeSpawner : MySessionComponentBase',
+'    {',
+'        const string DEFAULT_NAME = "__NAME__";',
+'        const string FOLDER = "Asteroids/";',
+'',
+'        bool _hooked;',
+'        bool _placing;',
+'        string _name;',
+'        int _size, _scale;',
+'        string[] _matNames;',
+'        string _b64;',
+'',
+'        double _dist = 150;',
+'        Vector3D _pos;',
+'        double _yaw;',
+'        int _msg;',
+'',
+'        // Build-Job, ueber Frames verteilt (verhindert den RAM-/Framezeit-Spike).',
+'        bool _building;',
+'        IMyStorage _storage;',
+'        MyStorageData _blk;',
+'        byte[] _content, _material, _map;',
+'        int _bsize, _bscale, _bosize, _B, _blockDim;',
+'        int _bi, _bcount, _bwritten, _bskipped;',
+'        Vector3D _bcenter;',
+'        double _byaw;',
+'        string _bname;',
+'        int BLOCKS_PER_FRAME = 6;',
+'',
+'        public override void LoadData()',
+'        {',
+'            MyAPIGateway.Utilities.MessageEntered += OnMessage;',
+'            _hooked = true;',
+'        }',
+'',
+'        protected override void UnloadData()',
+'        {',
+'            if (_hooked) MyAPIGateway.Utilities.MessageEntered -= OnMessage;',
+'        }',
+'',
+'        void OnMessage(string text, ref bool send)',
+'        {',
+'            if (!text.StartsWith("/ast", StringComparison.OrdinalIgnoreCase)) return;',
+'            send = false;',
+'            string[] parts = text.Split(new char[] { \' \' }, StringSplitOptions.RemoveEmptyEntries);',
+'            string name = parts.Length > 1 ? parts[1] : DEFAULT_NAME;',
+'            bool now = parts.Length > 2 && parts[2].Equals("now", StringComparison.OrdinalIgnoreCase);',
+'            try',
+'            {',
+'                LoadFile(name);',
+'                if (now) { Build(HeadPos(_dist), 0); }',
+'                else { StartPlacing(name); }',
+'            }',
+'            catch (Exception e) { MyAPIGateway.Utilities.ShowMessage("AST2SE", "Fehler: " + e.Message); }',
+'        }',
+'',
+'        Vector3D HeadPos(double d)',
+'        {',
+'            IMyCharacter ch = MyAPIGateway.Session.Player == null ? null : MyAPIGateway.Session.Player.Character;',
+'            if (ch == null) return Vector3D.Zero;',
+'            return ch.GetPosition() + ch.WorldMatrix.Forward * d;',
+'        }',
+'',
+'        void StartPlacing(string name)',
+'        {',
+'            _placing = true;',
+'            _yaw = 0;',
+'            _dist = _size * _scale * 1.2;',
+'            if (_dist < 60) _dist = 60;',
+'            _pos = HeadPos(_dist);',
+'            MyAPIGateway.Utilities.ShowMessage("AST2SE",',
+'                name + " (" + (_size * _scale) + " m): zielen mit dem Fadenkreuz, Mausrad = Distanz, Q/E drehen, ENTER bauen, BACKSPACE abbrechen.");',
+'        }',
+'',
+'        public override void UpdateBeforeSimulation()',
+'        {',
+'            if (_building) { StepBuild(); return; }',
+'            if (!_placing) return;',
+'',
+'            // Position folgt dem Fadenkreuz: Strahl aus der Kameramitte, _dist weit.',
+'            MatrixD cam = MyAPIGateway.Session.Camera.WorldMatrix;',
+'            _pos = cam.Translation + cam.Forward * _dist;',
+'',
+'            bool fast = MyAPIGateway.Input.IsKeyPress(MyKeys.LeftShift) || MyAPIGateway.Input.IsKeyPress(MyKeys.RightShift);',
+'            double rot = fast ? 0.06 : 0.015;',
+'            double dstep = (_size * _scale) * (fast ? 0.05 : 0.02) + (fast ? 8 : 2);',
+'',
+'            // Mausrad = Distanz (wie beim Blueprint). Tasten Z/X als Fallback.',
+'            int wheel = MyAPIGateway.Input.DeltaMouseScrollWheelValue();',
+'            if (wheel != 0) _dist += (wheel / 120.0) * dstep;',
+'            if (MyAPIGateway.Input.IsKeyPress(MyKeys.Z)) _dist += dstep;',
+'            if (MyAPIGateway.Input.IsKeyPress(MyKeys.X)) _dist -= dstep;',
+'            _dist = Math.Max(_size * _scale * 0.6, Math.Min(2000, _dist));',
+'',
+'            if (MyAPIGateway.Input.IsKeyPress(MyKeys.Q)) _yaw -= rot;',
+'            if (MyAPIGateway.Input.IsKeyPress(MyKeys.E)) _yaw += rot;',
+'',
+'            DrawPreview();',
+'',
+'            if (++_msg % 30 == 0)',
+'                MyAPIGateway.Utilities.ShowNotification("AST2SE: Fadenkreuz zielen  Mausrad=Distanz  Q/E=drehen  ENTER=bauen  BACKSPACE=abbrechen  (" +',
+'                    (int)_dist + " m, Yaw " + (int)(_yaw * 180 / Math.PI) + ")", 500);',
+'',
+'            if (MyAPIGateway.Input.IsNewKeyPressed(MyKeys.Enter))',
+'            {',
+'                _placing = false;',
+'                try { Build(_pos, _yaw); }',
+'                catch (Exception e) { MyAPIGateway.Utilities.ShowMessage("AST2SE", "Fehler: " + e.Message); }',
+'            }',
+'            else if (MyAPIGateway.Input.IsNewKeyPressed(MyKeys.Back))',
+'            {',
+'                _placing = false;',
+'                MyAPIGateway.Utilities.ShowMessage("AST2SE", "Abgebrochen.");',
+'            }',
+'        }',
+'',
+'        void DrawPreview()',
+'        {',
+'            float r = _size * _scale * 0.5f;',
+'            MatrixD m = MatrixD.CreateRotationY(_yaw);',
+'            m.Translation = _pos;',
+'            Color col = Color.Cyan;',
+'            Vector4 c4 = col.ToVector4();',
+'            MyStringId mat = MyStringId.GetOrCompute("Square");',
+'',
+'            Vector3D[] cn = new Vector3D[8];',
+'            int idx = 0;',
+'            for (int sx = -1; sx <= 1; sx += 2)',
+'                for (int sy = -1; sy <= 1; sy += 2)',
+'                    for (int sz = -1; sz <= 1; sz += 2)',
+'                        cn[idx++] = Vector3D.Transform(new Vector3D(sx * r, sy * r, sz * r), m);',
+'',
+'            int[,] E = { {0,1},{1,3},{3,2},{2,0}, {4,5},{5,7},{7,6},{6,4}, {0,4},{1,5},{2,6},{3,7} };',
+'            for (int e = 0; e < 12; e++)',
+'            {',
+'                Vector3D a = cn[E[e, 0]], b = cn[E[e, 1]];',
+'                Vector3D dir = b - a; double len = dir.Length();',
+'                if (len > 1e-3) dir /= len;',
+'                MySimpleObjectDraw.DrawLine(a, b, mat, ref c4, (float)(r * 0.01 + 0.5));',
+'            }',
+'        }',
+'',
+'        MyObjectBuilder_Checkpoint.ModItem FindModItem()',
+'        {',
+'            if (ModContext != null) return ModContext.ModItem;',
+'            List<MyObjectBuilder_Checkpoint.ModItem> mods = MyAPIGateway.Session.Mods;',
+'            for (int i = 0; i < mods.Count; i++)',
+'            {',
+'                string n = mods[i].Name;',
+'                if (n != null && n.IndexOf("Ast2Se", StringComparison.OrdinalIgnoreCase) >= 0) return mods[i];',
+'            }',
+'            throw new Exception("Mod-Item nicht gefunden - heisst der Ordner Ast2Se?");',
+'        }',
+'',
+'        TextReader Open(string name)',
+'        {',
+'            MyObjectBuilder_Checkpoint.ModItem mod = FindModItem();',
+'            TextReader r = null;',
+'            try { r = MyAPIGateway.Utilities.ReadFileInModLocation(FOLDER + name + ".b64", mod); }',
+'            catch { }',
+'            if (r == null)',
+'            {',
+'                try { r = MyAPIGateway.Utilities.ReadFileInModLocation(name + ".b64", mod); }',
+'                catch { }',
+'            }',
+'            if (r == null) throw new Exception("Nicht gefunden: " + FOLDER + name + ".b64");',
+'            return r;',
+'        }',
+'',
+'        void LoadFile(string name)',
+'        {',
+'            _size = 0; _scale = 1; _matNames = null; _b64 = null; _name = name;',
+'            TextReader r = Open(name);',
+'            string line;',
+'            while ((line = r.ReadLine()) != null)',
+'            {',
+'                if (line.StartsWith("SIZE ")) _size = int.Parse(line.Substring(5).Trim());',
+'                else if (line.StartsWith("SCALE ")) _scale = int.Parse(line.Substring(6).Trim());',
+'                else if (line.StartsWith("MATS ")) _matNames = line.Substring(5).Trim().Split(new char[] { \',\' });',
+'                else if (line.StartsWith("DATA ")) { _b64 = line.Substring(5).Trim(); break; }',
+'            }',
+'            r.Dispose();',
+'            if (_size <= 0 || _matNames == null || _b64 == null)',
+'                throw new Exception(name + ".b64 unvollstaendig - SIZE / MATS / DATA fehlt.");',
+'            if (_scale < 1) _scale = 1;',
+'        }',
+'',
+'        void Build(Vector3D center, double yaw)',
+'        {',
+'            if (_building) { MyAPIGateway.Utilities.ShowMessage("AST2SE", "Baue noch..."); return; }',
+'',
+'            _bsize = _size; _bscale = _scale; _bosize = _size * _scale;',
+'            _bcenter = center; _byaw = yaw; _bname = _name;',
+'',
+'            byte[] raw = Convert.FromBase64String(_b64);',
+'            int total = _bsize * _bsize * _bsize;',
+'            _content = new byte[total];',
+'            _material = new byte[total];',
+'            int p = 0, idx = 0;',
+'            while (p < raw.Length && idx < total)',
+'            {',
+'                int count = 0, shift = 0;',
+'                byte b;',
+'                do { b = raw[p++]; count |= (b & 0x7F) << shift; shift += 7; } while ((b & 0x80) != 0);',
+'                byte c = raw[p++];',
+'                byte mm = raw[p++];',
+'                for (int k = 0; k < count && idx < total; k++) { _content[idx] = c; _material[idx] = mm; idx++; }',
+'            }',
+'',
+'            _map = new byte[_matNames.Length + 1];',
+'            for (int i = 0; i < _matNames.Length; i++)',
+'            {',
+'                MyVoxelMaterialDefinition def = MyDefinitionManager.Static.GetVoxelMaterialDefinition(_matNames[i].Trim());',
+'                if (def == null) { MyAPIGateway.Utilities.ShowMessage("AST2SE", "Unbekanntes Material: " + _matNames[i]); _map[i + 1] = 0; }',
+'                else _map[i + 1] = def.Index;',
+'            }',
+'',
+'            Vector3I sz = new Vector3I(_bosize, _bosize, _bosize);',
+'            _storage = MyAPIGateway.Session.VoxelMaps.CreateStorage(sz);',
+'',
+'            _B = _bosize < 64 ? _bosize : 64;',
+'            _blk = new MyStorageData();',
+'            _blk.Resize(new Vector3I(_B, _B, _B));',
+'',
+'            _blockDim = (_bosize + _B - 1) / _B;',
+'            _bcount = _blockDim * _blockDim * _blockDim;',
+'            _bi = 0; _bwritten = 0; _bskipped = 0;',
+'            _building = true;',
+'',
+'            MyAPIGateway.Utilities.ShowMessage("AST2SE", _bname + " wird gebaut (" + _bosize + " m, " + _bcount + " Bloecke)...");',
+'        }',
+'',
+'        // Pro Frame nur ein paar Bloecke schreiben. So bleibt SE fluessig und der',
+'        // Octree-Aufbau verteilt sich, statt in einem Frame den Speicher zu sprengen.',
+'        void StepBuild()',
+'        {',
+'            int done = 0;',
+'            while (_bi < _bcount && done < BLOCKS_PER_FRAME)',
+'            {',
+'                int bxi = _bi % _blockDim;',
+'                int byi = (_bi / _blockDim) % _blockDim;',
+'                int bzi = _bi / (_blockDim * _blockDim);',
+'                int bx = bxi * _B, by = byi * _B, bz = bzi * _B;',
+'                _bi++;',
+'',
+'                if (BlockEmpty(_content, _bsize, _bscale, bx, by, bz, _B)) { _bskipped++; continue; }',
+'',
+'                _blk.ClearContent(0);',
+'                _blk.ClearMaterials(0);',
+'                Vector3I q;',
+'                for (q.Z = 0; q.Z < _B; q.Z++)',
+'                    for (q.Y = 0; q.Y < _B; q.Y++)',
+'                        for (q.X = 0; q.X < _B; q.X++)',
+'                        {',
+'                            byte c, mm;',
+'                            Sample(_content, _material, _bsize, _bscale, bx + q.X, by + q.Y, bz + q.Z, out c, out mm);',
+'                            if (c == 0) continue;',
+'                            _blk.Content(ref q, c);',
+'                            _blk.Material(ref q, mm < _map.Length ? _map[mm] : (byte)0);',
+'                        }',
+'                Vector3I mn = new Vector3I(bx, by, bz);',
+'                _storage.WriteRange(_blk, MyStorageDataTypeFlags.ContentAndMaterial, mn, mn + (_B - 1));',
+'                _bwritten++;',
+'                done++;',
+'            }',
+'',
+'            if (_bi % (_blockDim * _blockDim * 2) < BLOCKS_PER_FRAME)',
+'                MyAPIGateway.Utilities.ShowNotification("AST2SE baut... " + (_bi * 100 / _bcount) + "%", 400);',
+'',
+'            if (_bi >= _bcount)',
+'            {',
+'                _building = false;',
+'                string vname = "AST2SE_" + _bname + "_" + DateTime.UtcNow.Ticks;',
+'                Vector3D origin = _bcenter - new Vector3D(_bosize * 0.5);',
+'                IMyVoxelMap vm = MyAPIGateway.Session.VoxelMaps.CreateVoxelMap(vname, _storage, origin, 0);',
+'',
+'                if (Math.Abs(_byaw) > 0.001 && vm != null)',
+'                {',
+'                    MatrixD wm = MatrixD.CreateRotationY(_byaw);',
+'                    wm.Translation = vm.WorldMatrix.Translation;',
+'                    vm.WorldMatrix = wm;',
+'                }',
+'',
+'                // Speicher freigeben.',
+'                _content = null; _material = null; _map = null; _blk = null; _storage = null;',
+'',
+'                MyAPIGateway.Utilities.ShowMessage("AST2SE",',
+'                    _bname + " fertig: " + _bosize + " m, " + _bwritten + " Bloecke, " +',
+'                    _bskipped + " leer. Welt speichern -> .vx2 im Weltordner.");',
+'            }',
+'        }',
+'',
+'        static byte Get(byte[] a, int ds, int x, int y, int z)',
+'        {',
+'            if (x < 0 || y < 0 || z < 0 || x >= ds || y >= ds || z >= ds) return 0;',
+'            return a[x + ds * (y + ds * z)];',
+'        }',
+'',
+'        static bool BlockEmpty(byte[] content, int ds, int scale, int bx, int by, int bz, int B)',
+'        {',
+'            int x0 = bx / scale - 1, x1 = (bx + B - 1) / scale + 1;',
+'            int y0 = by / scale - 1, y1 = (by + B - 1) / scale + 1;',
+'            int z0 = bz / scale - 1, z1 = (bz + B - 1) / scale + 1;',
+'            if (x0 < 0) x0 = 0; if (y0 < 0) y0 = 0; if (z0 < 0) z0 = 0;',
+'            if (x1 >= ds) x1 = ds - 1; if (y1 >= ds) y1 = ds - 1; if (z1 >= ds) z1 = ds - 1;',
+'            for (int z = z0; z <= z1; z++)',
+'                for (int y = y0; y <= y1; y++)',
+'                    for (int x = x0; x <= x1; x++)',
+'                        if (content[x + ds * (y + ds * z)] != 0) return false;',
+'            return true;',
+'        }',
+'',
+'        static void Sample(byte[] content, byte[] material, int ds, int scale,',
+'                           int ox, int oy, int oz, out byte c, out byte m)',
+'        {',
+'            if (scale == 1)',
+'            {',
+'                c = Get(content, ds, ox, oy, oz);',
+'                m = Get(material, ds, ox, oy, oz);',
+'                return;',
+'            }',
+'            float fx = (ox + 0.5f) / scale - 0.5f;',
+'            float fy = (oy + 0.5f) / scale - 0.5f;',
+'            float fz = (oz + 0.5f) / scale - 0.5f;',
+'            int x0 = (int)Math.Floor(fx), y0 = (int)Math.Floor(fy), z0 = (int)Math.Floor(fz);',
+'            float tx = fx - x0, ty = fy - y0, tz = fz - z0;',
+'            float acc = 0f;',
+'            for (int k = 0; k < 8; k++)',
+'            {',
+'                int ix = x0 + (k & 1), iy = y0 + ((k >> 1) & 1), iz = z0 + ((k >> 2) & 1);',
+'                float w = ((k & 1) == 0 ? 1f - tx : tx)',
+'                        * (((k >> 1) & 1) == 0 ? 1f - ty : ty)',
+'                        * (((k >> 2) & 1) == 0 ? 1f - tz : tz);',
+'                acc += w * Get(content, ds, ix, iy, iz);',
+'            }',
+'            int ci = (int)(acc + 0.5f);',
+'            if (ci < 0) ci = 0; if (ci > 255) ci = 255;',
+'            c = (byte)ci;',
+'            m = 0;',
+'            if (c != 0)',
+'            {',
+'                m = Get(material, ds, (int)Math.Round((double)fx), (int)Math.Round((double)fy), (int)Math.Round((double)fz));',
+'                if (m == 0)',
+'                    for (int k = 0; k < 8 && m == 0; k++)',
+'                        m = Get(material, ds, x0 + (k & 1), y0 + ((k >> 1) & 1), z0 + ((k >> 2) & 1));',
+'                if (m == 0) m = 1;',
+'            }',
+'        }',
+'    }',
+'}'
+  ].join('\n').replace('__NAME__', astName());
+}
+
+$('eMod').onclick=()=>{ if(!need())return;
+  const n=astName();
+  dl('Ast2Se_Mod_'+n+'.zip', zipFile([
+    {name:'Ast2Se/Data/Scripts/Ast2Se/Ast2SeSpawner.cs',data:modSource()},
+    {name:'Ast2Se/Asteroids/'+n+'.b64',data:dataFileText()},
+    {name:'Ast2Se/Asteroids/'+n+'.a2s',data:stateCode()},
+    {name:'README_AST2SE.txt',data:readmeText()}
+  ]),'application/zip');
+};
+$('eB64').onclick=()=>{ if(!need())return;
+  dl(astName()+'.b64', dataFileText(), 'text/plain');
+};
+
+function readmeText(){ return `AST2SE — Asteroid Designer
+==========================
+
+EMPFOHLENER WEG: MOD  (Material bleibt pro Voxel erhalten)
+---------------------------------------------------------
+ 1. Export "KOMPLETTER MOD .ZIP"
+ 2. ZIP entpacken nach  %AppData%\\SpaceEngineers\\Mods\\
+    Fertige Struktur:
+      Mods\\Ast2Se\\Data\\Scripts\\Ast2Se\\Ast2SeSpawner.cs
+      Mods\\Ast2Se\\Asteroids\\<Name>.b64      <-- die Asteroiden
+      Mods\\Ast2Se\\Asteroids\\<Name>.a2s      <-- Projekt-Code dazu
+ 3. Optionen -> Spiel -> Experimenteller Modus AN (sonst laedt SE keine
+    lokalen Mods, und zwar kommentarlos).
+    Welt bearbeiten -> Mods -> Ast2Se rueberschieben -> Speichern.
+ 4. Ingame:
+      /ast              -> Platzierungsmodus, Standard-Asteroid
+      /ast Glacier      -> Platzierungsmodus, Asteroids\\Glacier.b64
+      /ast Glacier now  -> sofort vor dem Spieler, ohne Platzierung
+    Platzierungsmodus (Cyan-Drahtwuerfel zeigt Groesse + Lage):
+      W/S vor/zurueck   A/D links/rechts   R/F hoch/runter
+      Q/E drehen (Yaw)  Z/X Distanz        SHIFT = 5x schneller
+      ENTER = bauen     BACKSPACE = abbrechen
+    Der Bau laeuft ueber mehrere Frames verteilt (Fortschritt in %), damit
+    grosse Asteroiden den Arbeitsspeicher und die Framezeit nicht auf einen
+    Schlag sprengen. Willst du es schneller/langsamer: in der .cs den Wert
+    BLOCKS_PER_FRAME aendern (Standard 6; hoeher = schneller aber ruckeliger).
+ 5. WELT SPEICHERN. SE serialisiert den Voxelbody selbst als .vx2 in den
+    Weltordner (%AppData%\\SpaceEngineers\\Saves\\...). Rausziehen und
+    wiederverwenden. SEToolbox wird nicht gebraucht.
+
+MEHRERE ASTEROIDEN
+------------------
+ Die .cs ist generisch — Aufloesung und Materialliste stehen in der .b64,
+ nicht im Code. Fuer jeden weiteren Asteroiden:
+   Name im FORM-Tab setzen -> Export "NUR .B64" -> Datei nach
+   Mods\\Ast2Se\\Asteroids\\ kopieren -> /ast <Name>
+ Kein Neu-Export des Mods, kein Neukompilieren, kein Spielneustart noetig
+ (die Datei wird bei jedem /ast frisch gelesen).
+
+FORMAT DER .B64
+---------------
+   AST2SE 1
+   NAME Glacier
+   SIZE 128                 <- Storage-Kantenlaenge, 2er-Potenz
+   SEED 1337
+   MATS Stone_01,Grass,Soil <- lokaler Index 1..n -> SE-Subtype
+   DATA <base64>            <- RLE, eine Zeile
+ RLE = varint(count) + byte(content 0..255) + byte(material, 0=leer),
+ Reihenfolge x schnell, dann y, dann z. content 255 = voll, 0 = leer,
+ dazwischen = glatter Uebergang.
+
+PROJEKT-CODE  (in einer anderen Session weitermachen)
+----------------------------------------------------
+ FORM-Tab -> "ERZEUGEN + KOPIEREN" gibt einen Code AST2SE1:...
+ Der enthaelt ALLE Regler, Adern-Regeln und eigene Materialien, nicht nur
+ den Noise-Seed. Einfuegen + "LADEN" stellt die Insel exakt wieder her.
+ Liegt auch als <Name>.a2s in jeder Mod-ZIP.
+
+ Bilder sind standardmaessig NICHT enthalten. Checkbox "Bild in den Code
+ einbetten" nimmt eine auf 192 px verkleinerte Fassung mit.
+
+ Nur der Seed allein reicht NICHT. Gleicher Seed + andere Regler = andere Insel.
+
+AUTO-FIT
+--------
+ Die Geometrie kann das Gitter sprengen (Streckung x Radius x Noise, bzw.
+ Kegel-Tiefe bei Inseln). Dann wird am Gitterrand platt abgeschnitten.
+ Auto-Fit rechnet die Ausdehnung vorher aus und skaliert uniform ein;
+ der Faktor steht im HUD. Abschalten nur, wenn du bewusst abschneiden
+ willst (halber Asteroid, Bruchkante, Plattform).
+ Rot "ABGESCHNITTEN" im HUD = es ragt trotzdem raus. Haeufigste Ursache:
+ Grundriss-Bild, dessen Silhouette bis an den Bildrand geht -> Rand freilassen.
+
+MATERIALIEN
+-----------
+ Die Namen im Tool stammen aus der MaterialIndexTable einer echten .vx2.
+ Haeufige Irrtuemer:
+   Uranium_01  existiert NICHT -> Uraninite_01
+   Sand_01     existiert NICHT -> nur Sand_02
+ Die MaterialIndexTable ist PRO DATEI verschieden (62 vs 60 Eintraege in
+ verschiedenen Welten). Deshalb loest der Mod ueber den Namen auf
+ (GetVoxelMaterialDefinition) und nicht ueber harte Indizes.
+
+SETOOLBOX-WEG (nur fuer EIN Material)
+-------------------------------------
+ Export ".OBJ" -> SEToolbox -> "Import Model as Voxel".
+ ACHTUNG: SEToolbox hat nur ein Material-Dropdown und liest die OBJ-Gruppen
+ NICHT. Der komplette Asteroid bekommt einen einzigen Materialtyp.
+ Fuer Multi-Material -> Mod-Weg.
+
+.VX2-FORMAT  (aus echten Dateien reverse-engineered)
+----------------------------------------------------
+  gzip(
+    "Octree"          .NET length-prefixed string
+    02 0X 00          Version 2 + Subversion:
+                        06 = von SEToolbox geschrieben (aeltere VRage)
+                        07 = von aktuellem SE geschrieben
+    Chunk-Kette:      [varint typ][varint version][varint size][payload]
+  )
+  Typen: 1 StorageMetaData, 2 MaterialIndexTable, 3 MacroContentNodes,
+         4 MacroMaterialNodes, 5 ContentLeafProvider, 6 ContentLeafOctree,
+         7 MaterialLeafProvider, 8 MaterialLeafOctree, 9 DataProvider
+
+  Echte SE-Asteroiden sind KEINE Voxel-Dumps: sie haben einen DataProvider
+  mit int64 Seed + Generatorname ("Asteroid128-007") und speichern nur die
+  Aenderungen als Octree-Deltas. Deshalb sind 128^3 nur ~93 KB.
+  Ein handgebauter Asteroid hat keinen Generator und liegt komplett explizit
+  vor - entsprechend groesser.
+
+  Das Modell oben stimmt fuer die Metadaten-Chunks; bei den Octree-Chunks
+  (3/4/6/8) bricht der Walk ab. Ein eigener .vx2-Writer scheitert an deren
+  LOD-Pyramide (LeafLodCount=4). Deshalb: SE selbst serialisieren lassen.
+
+LIMITS
+------
+ 1 Voxel = 1 m. Aufloesung bis 256 (=256 m).
+ Ab 160 dauert die Generierung 20-60 s. Vorschau wird ab 128 dezimiert,
+ exportiert wird immer die volle Aufloesung.
+ Programmable Block kann keine Voxel schreiben. Nur Mod oder SEToolbox.
+`; }
+$('eRead').onclick=()=>dl('README_AST2SE.txt',readmeText(),'text/plain');
+
+/* ============================ INIT ============================ */
+function updSize(){
+  const n=parseInt($('res').value), k=parseInt($('vscale').value);
+  let P=64; while(P<n) P*=2;
+  $('v-sesize').textContent = n+'³ × '+k+'  →  '+(P*k)+' m   ('+k+' m Detail)';
+}
+$('res').onchange=updSize; $('vscale').onchange=updSize; updSize();
+$('src').onchange=()=>{ $('c-isle').style.display = ($('src').value==='isle')?'block':'none'; };
+$('src').onchange();
+$('build').onclick=()=>build();
+initGL(); build();
+</script>
+</body>
+</html>

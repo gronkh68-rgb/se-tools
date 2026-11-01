@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MCTEX2SE // Texture Block Builder</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+:root{
+  --bg:#080c12; --panel:#0d1520; --panel2:#111c2a; --line:#1d2c3e;
+  --cy:#00cfff; --gr:#39ff14; --or:#ff9d2e; --rd:#ff3b3b; --tx:#c8dbe8; --dim:#6b8299;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--bg); color:var(--tx); font-family:'Share Tech Mono',monospace; font-size:13px;
+  background-image:linear-gradient(rgba(0,207,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(0,207,255,.05) 1px,transparent 1px);
+  background-size:32px 32px; overflow:hidden;
+}
+h1,h2,h3,.ff{font-family:'Orbitron',sans-serif;letter-spacing:1px}
+#app{display:grid;grid-template-columns:280px 1fr 330px;grid-template-rows:52px 1fr;height:100vh}
+header{grid-column:1/-1;display:flex;align-items:center;gap:16px;padding:0 16px;background:var(--panel);border-bottom:1px solid var(--line);box-shadow:0 0 24px rgba(0,207,255,.12)}
+header h1{font-size:16px;font-weight:900;color:var(--cy);text-shadow:0 0 12px rgba(0,207,255,.6)}
+header .sub{color:var(--dim);font-size:11px}
+.spacer{flex:1}
+.col{overflow:auto;background:var(--panel);border-right:1px solid var(--line);padding:10px}
+.col.right{border-right:none;border-left:1px solid var(--line)}
+.card{background:var(--panel2);border:1px solid var(--line);border-top:2px solid var(--cy);padding:9px;margin-bottom:10px}
+.card.g{border-top-color:var(--gr)} .card.o{border-top-color:var(--or)} .card.r{border-top-color:var(--rd)}
+.card h3{font-size:11px;color:var(--cy);margin-bottom:7px;text-transform:uppercase}
+.card.g h3{color:var(--gr)} .card.o h3{color:var(--or)} .card.r h3{color:var(--rd)}
+button{font-family:'Orbitron',sans-serif;font-size:10px;font-weight:700;letter-spacing:.5px;background:#0a1420;color:var(--cy);border:1px solid var(--cy);padding:6px 9px;cursor:pointer;transition:.15s;text-transform:uppercase}
+button:hover:not(:disabled){background:var(--cy);color:#04080d;box-shadow:0 0 14px rgba(0,207,255,.55)}
+button:disabled{opacity:.35;cursor:not-allowed}
+button.g{color:var(--gr);border-color:var(--gr)} button.g:hover:not(:disabled){background:var(--gr);color:#04080d;box-shadow:0 0 14px rgba(57,255,20,.55)}
+button.o{color:var(--or);border-color:var(--or)} button.o:hover:not(:disabled){background:var(--or);color:#04080d}
+button.sm{padding:3px 6px;font-size:9px}
+button.on{background:var(--gr);color:#04080d}
+input,select{font-family:'Share Tech Mono',monospace;font-size:12px;background:#060b12;color:var(--tx);border:1px solid var(--line);padding:5px 7px;width:100%}
+input:focus,select:focus{outline:none;border-color:var(--cy)}
+label{display:block;color:var(--dim);font-size:10px;margin:6px 0 3px;text-transform:uppercase}
+.row{display:flex;gap:6px;align-items:center}
+.row>*{flex:1}
+.chk{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--dim);margin:4px 0;cursor:pointer}
+.chk input{width:auto;flex:none}
+#viewport{position:relative;overflow:hidden;min-width:0;min-height:0;background:radial-gradient(ellipse at center,#0d1826 0%,#050810 75%)}
+#viewport canvas{position:absolute;left:0;top:0;width:100%;height:100%;display:block}
+#vpinfo{position:absolute;z-index:2;left:12px;bottom:10px;color:var(--dim);font-size:10px;line-height:1.6;pointer-events:none}
+#vpbadge{position:absolute;z-index:2;right:12px;top:10px;color:var(--gr);font-size:10px;text-align:right;line-height:1.6;pointer-events:none}
+#vptools{position:absolute;z-index:2;left:12px;top:10px;display:flex;gap:5px;flex-wrap:wrap;max-width:60%}
+#texgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+.tex{position:relative;aspect-ratio:1;border:1px solid var(--line);cursor:pointer;background:#000;transition:.12s}
+.tex:hover{border-color:var(--cy);box-shadow:0 0 10px rgba(0,207,255,.4)}
+.tex.sel{border-color:var(--gr);box-shadow:0 0 12px rgba(57,255,20,.6)}
+.tex canvas{width:100%;height:100%;image-rendering:pixelated;display:block}
+.tex .nm{position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.78);font-size:8px;color:var(--dim);padding:1px 2px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.faceslot{display:flex;gap:7px;align-items:center;border:1px solid var(--line);border-left:2px solid var(--dim);padding:5px;margin-bottom:5px;background:#0a121c}
+.faceslot.has{border-left-color:var(--gr)}
+.faceslot .fp{width:40px;height:40px;border:1px solid var(--line);background:#000;image-rendering:pixelated;flex:none}
+.faceslot .fi{flex:1;min-width:0}
+.faceslot .fn{font-family:'Orbitron',sans-serif;font-size:10px;color:var(--cy)}
+.faceslot .ft{font-size:9px;color:var(--dim);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.faceslot .fb{display:flex;gap:3px;margin-top:3px}
+#boxlist{font-size:10px;margin-top:6px}
+#boxlist div{display:flex;justify-content:space-between;align-items:center;padding:2px 4px;border-bottom:1px dotted var(--line);color:var(--dim)}
+#boxlist span.del{cursor:pointer;color:var(--rd);font-weight:bold;padding:0 3px}
+#log{font-size:10px;line-height:1.5;max-height:110px;overflow:auto;color:var(--dim)}
+#log .ok{color:var(--gr)} #log .er{color:var(--rd)} #log .wa{color:var(--or)}
+.stat{display:flex;justify-content:space-between;font-size:11px;padding:2px 0;border-bottom:1px dotted var(--line)}
+.stat b{color:var(--gr);font-weight:normal}
+.hint{font-size:10px;color:var(--dim);line-height:1.5;margin-top:5px}
+.warn{font-size:10px;color:var(--or);line-height:1.5;margin-top:5px}
+::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-track{background:#060b12}
+::-webkit-scrollbar-thumb{background:#1d3548;border:1px solid var(--line)}::-webkit-scrollbar-thumb:hover{background:var(--cy)}
+@media(max-width:1100px){#app{grid-template-columns:1fr;grid-template-rows:52px 240px 320px auto;height:auto;overflow:auto}body{overflow:auto}.col{border:none;border-bottom:1px solid var(--line)}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>MCTEX2SE</h1>
+    <span class="sub">MINECRAFT TEXTURE &rarr; SPACE ENGINEERS BLOCK</span>
+    <div class="spacer"></div>
+    <span class="sub" id="hdrstat">NO TEXTURE</span>
+  </header>
+
+  <!-- ================= LEFT ================= -->
+  <div class="col">
+    <div class="card">
+      <h3>Texturquelle</h3>
+      <div class="row">
+        <button id="btnDir">Ordner</button>
+        <button id="btnFiles">Dateien</button>
+      </div>
+      <input type="file" id="fDir" webkitdirectory directory multiple accept="image/png" style="display:none">
+      <input type="file" id="fFiles" multiple accept="image/png,image/jpeg" style="display:none">
+      <label>Filter</label>
+      <input type="text" id="search" placeholder="oak / diamond / stone">
+      <div class="hint">Ordner-Zugriff: Chrome/Edge. Alternativ PNGs ins Fenster ziehen.</div>
+    </div>
+    <div class="card g">
+      <h3>Texturen <span id="texcount" style="color:var(--dim)">(0)</span></h3>
+      <div id="texgrid"></div>
+    </div>
+  </div>
+
+  <!-- ================= CENTER ================= -->
+  <div id="viewport">
+    <div id="vptools">
+      <button class="sm on" id="tgSupport">Stützgitter</button>
+      <button class="sm" id="tgXray">Röntgen</button>
+      <button class="sm" id="tgGrid">Zellgitter</button>
+      <button class="sm" id="tgReset">Ansicht</button>
+    </div>
+    <div id="vpinfo">LMB Drehen &middot; Wheel Zoom &middot; RMB Pan</div>
+    <div id="vpbadge"></div>
+  </div>
+
+  <!-- ================= RIGHT ================= -->
+  <div class="col right">
+
+    <div class="card r">
+      <h3>Form</h3>
+      <select id="shape"></select>
+      <div id="armsRow" style="display:none">
+        <label>Arme / Verbindungen</label>
+        <div class="row">
+          <button class="sm" data-arm="n">Nord</button>
+          <button class="sm" data-arm="s">Süd</button>
+          <button class="sm" data-arm="w">West</button>
+          <button class="sm" data-arm="e">Ost</button>
+        </div>
+      </div>
+      <div id="customRow" style="display:none">
+        <label>Eigene Box &mdash; Maße in Zellen (1&hellip;16)</label>
+        <div class="row">
+          <div><label>L (X)</label><input type="number" id="cL" value="16" min="1" max="16"></div>
+          <div><label>H (Y)</label><input type="number" id="cH" value="8"  min="1" max="16"></div>
+          <div><label>B (Z)</label><input type="number" id="cB" value="16" min="1" max="16"></div>
+        </div>
+        <div class="row">
+          <div><label>Off X</label><input type="number" id="oX" value="0" min="0" max="15"></div>
+          <div><label>Off Y</label><input type="number" id="oY" value="0" min="0" max="15"></div>
+          <div><label>Off Z</label><input type="number" id="oZ" value="0" min="0" max="15"></div>
+        </div>
+        <label class="chk"><input type="checkbox" id="cCenter" checked> X/Z zentrieren</label>
+        <div class="row">
+          <button class="sm g" id="boxAdd">+ Box</button>
+          <button class="sm o" id="boxClear">Leeren</button>
+        </div>
+        <div id="boxlist"></div>
+      </div>
+      <label>Drehung um Y</label>
+      <select id="rotY"><option value="0">0°</option><option value="1">90°</option><option value="2">180°</option><option value="3">270°</option></select>
+    </div>
+
+    <div class="card o">
+      <h3>Aufbau</h3>
+      <label>Modus</label>
+      <select id="mode">
+        <option value="voxel">Voxel-Schale (formtreu, stapelbar)</option>
+        <option value="panelbox">Panel-Hülle (nur Vollblock, +1 Zelle je Seite)</option>
+      </select>
+      <div class="row">
+        <div><label>Schale</label><select id="shell">
+          <option value="panel">Panels wo möglich</option>
+          <option value="block">Nur Vollblöcke</option>
+        </select></div>
+        <div><label>Füllung innen</label><select id="fill">
+          <option value="skeleton">Stützgitter</option>
+          <option value="none">Hohl</option>
+          <option value="solid">Massiv</option>
+        </select></div>
+      </div>
+      <label>Panel-Plattenseite</label>
+      <select id="plateside">
+        <option value="out">nach außen</option>
+        <option value="in">nach innen (invertiert)</option>
+      </select>
+      <div class="warn">Welche Seite stimmt, hängt am SE-Panelmodell und ließ sich aus der Vorlage nicht ableiten. Einmal im Spiel prüfen.</div>
+    </div>
+
+    <div class="card g">
+      <h3>Flächen-Zuweisung</h3>
+      <div class="row" style="margin-bottom:7px">
+        <button class="sm g" data-apply="all">Alle 6</button>
+        <button class="sm g" data-apply="side">Seiten 4</button>
+        <button class="sm g" data-apply="topbot">Oben+Unten</button>
+      </div>
+      <div id="faces"></div>
+    </div>
+
+    <div class="card">
+      <h3>Blueprint</h3>
+      <label>Name / SubtypeId</label>
+      <input type="text" id="bpname" value="mc_block">
+      <div class="row">
+        <div><label>Gridgröße</label><select id="gridsize"><option value="Large">Large</option><option value="Small">Small</option></select></div>
+        <div><label>Panzerung</label><select id="armor"><option value="Light">Light</option><option value="Heavy">Heavy</option></select></div>
+      </div>
+      <div class="row">
+        <div><label>Skin</label><select id="skin">
+          <option>Weldless</option><option>Clean_Armor</option><option>Rusty_Armor</option>
+          <option>Battered_Armor</option><option>Frozen_Armor</option><option>Mossy_Armor</option>
+          <option>Wooden_Armor</option><option>Concrete_Armor</option><option>Digital_Armor</option>
+          <option value="">(kein Skin)</option>
+        </select></div>
+        <div><label>Auflösung</label><select id="res">
+          <option value="16">16</option><option value="8">8</option><option value="32">32</option>
+        </select></div>
+      </div>
+      <div class="row">
+        <div><label>Alpha-Schwelle</label><input type="number" id="alpha" value="16" min="0" max="255"></div>
+        <div><label>Format</label><select id="format">
+          <option value="bp">Blueprint</option><option value="prefab">Prefab</option>
+        </select></div>
+      </div>
+    </div>
+
+    <div class="card o">
+      <h3>Statistik</h3>
+      <div class="stat"><span>Panels</span><b id="stPanels">0</b></div>
+      <div class="stat"><span>Vollblöcke (Schale)</span><b id="stSolid">0</b></div>
+      <div class="stat"><span>Stützgitter</span><b id="stSup">0</b></div>
+      <div class="stat"><span>Gesamt</span><b id="stTotal">0</b></div>
+      <div class="stat"><span>Ausmaße</span><b id="stDim">-</b></div>
+      <div class="row" style="margin-top:9px">
+        <button class="g" id="btnSbc" disabled>.SBC</button>
+        <button class="g" id="btnZip" disabled>ZIP</button>
+      </div>
+    </div>
+
+    <div class="card"><h3>Log</h3><div id="log"></div></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* =========================================================================
+   MCTEX2SE - Minecraft Texture -> Space Engineers Block
+   Mapping + Farbformel rekonstruiert aus echter SE-Blueprint-Vorlage:
+     ColorMaskHSV: x = H(0..1) | y = S - 0.8 | z = V - 0.55
+   Panel-Orientierung: lokales -X der Panels zeigt auf die Aussennormale.
+   ========================================================================= */
+
+/* ------------------------- Richtungen ------------------------- */
+const DIR = {
+  px:{ v:[ 1, 0, 0], orient:'Forward="Backward" Up="Up"'   , name:'+X  (Ost)'   },
+  nx:{ v:[-1, 0, 0], orient:null                           , name:'-X  (West)'  },
+  py:{ v:[ 0, 1, 0], orient:'Forward="Left" Up="Forward"'   , name:'+Y  (Oben)'  },
+  ny:{ v:[ 0,-1, 0], orient:'Forward="Left" Up="Backward"'  , name:'-Y  (Unten)' },
+  pz:{ v:[ 0, 0, 1], orient:'Forward="Left" Up="Up"'        , name:'+Z  (Süd)'   },
+  nz:{ v:[ 0, 0,-1], orient:'Forward="Right" Up="Up"'       , name:'-Z  (Nord)'  }
+};
+const DIRS = ['px','nx','py','ny','pz','nz'];
+const OPP  = { px:'nx', nx:'px', py:'ny', ny:'py', pz:'nz', nz:'pz' };
+
+// Zelle in Formkoordinaten (0..N-1) -> Texel (row,col) der jeweiligen Flaeche
+const TEX = {
+  px:(x,y,z,N)=>[N-1-y, N-1-z],
+  nx:(x,y,z,N)=>[N-1-y, z    ],
+  py:(x,y,z,N)=>[z    , x    ],
+  ny:(x,y,z,N)=>[N-1-z, x    ],
+  pz:(x,y,z,N)=>[N-1-y, x    ],
+  nz:(x,y,z,N)=>[N-1-y, N-1-x]
+};
+// Panel-Huelle (Vollblock, Vorlagenlogik): Texel -> SE-Gridposition
+const MAPBOX = {
+  px:(r,c,N)=>[N+1, N-1-r, N-1-c],
+  nx:(r,c,N)=>[0  , N-1-r, c    ],
+  py:(r,c,N)=>[1+c, N    , r    ],
+  ny:(r,c,N)=>[1+c, -1   , N-1-r],
+  pz:(r,c,N)=>[1+c, N-1-r, N    ],
+  nz:(r,c,N)=>[N-c, N-1-r, -1   ]
+};
+
+/* ------------------------- Formen ------------------------- */
+// Box = [x0,y0,z0,x1,y1,z1] in 0..16, x1/y1/z1 exklusiv. Referenz N=16, wird skaliert.
+function fenceArm(d){
+  if(d==='n') return [[7,12,0,9,15,6],[7,6,0,9,9,6]];
+  if(d==='s') return [[7,12,10,9,15,16],[7,6,10,9,9,16]];
+  if(d==='w') return [[0,12,7,6,15,9],[0,6,7,6,9,9]];
+  return [[10,12,7,16,15,9],[10,6,7,16,9,9]];
+}
+function wallArm(d){
+  if(d==='n') return [[5,0,0,11,14,4]];
+  if(d==='s') return [[5,0,12,11,14,16]];
+  if(d==='w') return [[0,0,5,4,14,11]];
+  return [[12,0,5,16,14,11]];
+}
+function paneArm(d){
+  if(d==='n') return [[7,0,0,9,16,7]];
+  if(d==='s') return [[7,0,9,9,16,16]];
+  if(d==='w') return [[0,0,7,7,16,9]];
+  return [[9,0,7,16,16,9]];
+}
+function frameBoxes(t){
+  const a=t, b=16-t, out=[];
+  for(const y of [0,b]) for(const z of [0,b]) out.push([0,y,z,16,y+a,z+a]);
+  for(const x of [0,b]) for(const z of [0,b]) out.push([x,0,z,x+a,16,z+a]);
+  for(const x of [0,b]) for(const y of [0,b]) out.push([x,y,0,x+a,y+a,16]);
+  return out;
+}
+const SHAPES = {
+  full:        { n:'Vollblock',                 f:()=>[[0,0,0,16,16,16]] },
+  slab_bottom: { n:'Stufe unten (Slab)',        f:()=>[[0,0,0,16,8,16]] },
+  slab_top:    { n:'Stufe oben',                f:()=>[[0,8,0,16,16,16]] },
+  slab_vert:   { n:'Stufe senkrecht',           f:()=>[[0,0,0,8,16,16]] },
+  corner:      { n:'Viertelblock (Ecke)',       f:()=>[[0,0,0,8,16,8]] },
+  stairs:      { n:'Treppe',                    f:()=>[[0,0,0,16,8,16],[0,8,0,16,16,8]] },
+  stairs_top:  { n:'Treppe (kopfüber)',         f:()=>[[0,8,0,16,16,16],[0,0,0,16,8,8]] },
+  stairs_in:   { n:'Treppe Innenecke',          f:()=>[[0,0,0,16,8,16],[0,8,0,16,16,8],[0,8,8,8,16,16]] },
+  stairs_out:  { n:'Treppe Außenecke',          f:()=>[[0,0,0,16,8,16],[0,8,0,8,16,8]] },
+  fence:       { n:'Zaun',        arms:1, f:a=>[[6,0,6,10,16,10]].concat(...a.map(fenceArm)) },
+  wall:        { n:'Mauer',       arms:1, f:a=>[[4,0,4,12,16,12]].concat(...a.map(wallArm)) },
+  pane:        { n:'Glasscheibe', arms:1, f:a=>[[7,0,7,9,16,9]].concat(...a.map(paneArm)) },
+  bars:        { n:'Gitterstäbe', arms:1, f:a=>[[7,0,7,9,16,9]].concat(...a.map(paneArm)) },
+  gate:        { n:'Zauntor',                   f:()=>[[0,5,7,2,16,9],[14,5,7,16,16,9],[2,12,7,14,15,9],[2,6,7,14,9,9]] },
+  carpet:      { n:'Teppich (1)',               f:()=>[[0,0,0,16,1,16]] },
+  plate:       { n:'Druckplatte',               f:()=>[[1,0,1,15,1,15]] },
+  trapdoor:    { n:'Falltür (3)',               f:()=>[[0,0,0,16,3,16]] },
+  door:        { n:'Tür (3)',                   f:()=>[[0,0,0,16,16,3]] },
+  ladder:      { n:'Leiter (1)',                f:()=>[[0,0,15,16,16,16]] },
+  button:      { n:'Knopf',                     f:()=>[[5,0,6,11,2,10]] },
+  pillar:      { n:'Säule 8x8',                 f:()=>[[4,0,4,12,16,12]] },
+  post:        { n:'Pfosten 4x4',               f:()=>[[6,0,6,10,16,10]] },
+  beam:        { n:'Balken liegend',            f:()=>[[0,4,4,16,12,12]] },
+  cross:       { n:'Pflanze (Kreuz)',           f:()=>[[0,0,7,16,16,9],[7,0,0,9,16,16]] },
+  frame:       { n:'Rahmen (Kanten)',           f:()=>frameBoxes(2) },
+  table:       { n:'Tisch',                     f:()=>[[0,13,0,16,16,16],[1,0,1,4,13,4],[12,0,1,15,13,4],[1,0,12,4,13,15],[12,0,12,15,13,15]] },
+  roof45:      { n:'Dachschräge 45°',           f:()=>{const o=[];for(let i=0;i<16;i++)o.push([0,i,i,16,i+1,16]);return o;} },
+  pyramid:     { n:'Pyramide',                  f:()=>{const o=[];for(let i=0;i<8;i++)o.push([i,i*2,i,16-i,i*2+2,16-i]);return o;} },
+  custom:      { n:'Eigen (L/H/B)',   custom:1, f:()=>state.customBoxes.slice() }
+};
+
+/* ------------------------- State ------------------------- */
+const state = {
+  textures: [], selected: null,
+  slots: {}, arms: { n:true, e:true, s:true, w:true },
+  customBoxes: [[0,0,0,16,8,16]],
+  model: null,
+  view: { support:true, xray:false, grid:false }
+};
+DIRS.forEach(d => state.slots[d] = { tex:null, rot:0, flip:false });
+
+/* ------------------------- Utils ------------------------- */
+const $ = s => document.querySelector(s);
+function log(msg, cls){
+  const d = document.createElement('div');
+  if(cls) d.className = cls;
+  d.textContent = '> ' + msg;
+  $('#log').prepend(d);
+  while($('#log').children.length > 60) $('#log').lastChild.remove();
+}
+function rgbToHsv(r,g,b){
+  r/=255; g/=255; b/=255;
+  const mx = Math.max(r,g,b), mn = Math.min(r,g,b), d = mx-mn;
+  let h = 0;
+  if(d !== 0){
+    if(mx === r)      h = ((g-b)/d) % 6;
+    else if(mx === g) h = (b-r)/d + 2;
+    else              h = (r-g)/d + 4;
+    h *= 60; if(h < 0) h += 360;
+  }
+  return [ h/360, mx === 0 ? 0 : d/mx, mx ];
+}
+const num = v => { const s = (Math.round(v*1e6)/1e6).toString(); return s === '-0' ? '0' : s; };
+function entityId(){
+  let s = String(1 + Math.floor(Math.random()*8));
+  for(let i=0;i<17;i++) s += Math.floor(Math.random()*10);
+  return s;
+}
+const key3 = (x,y,z) => x + ',' + y + ',' + z;
+
+/* ------------------------- Texturen ------------------------- */
+function loadImageFile(file, path){
+  return new Promise(res => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let w = img.width, h = img.height, src = img;
+      if(h > w && h % w === 0){                       // animierte MC-Textur -> Frame 1
+        const c = document.createElement('canvas'); c.width = w; c.height = w;
+        c.getContext('2d').drawImage(img, 0,0,w,w, 0,0,w,w);
+        src = c; h = w;
+      }
+      res({ name:file.name.replace(/\.[^.]+$/,''), path:path||file.name, img:src, w, h });
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); res(null); };
+    img.src = url;
+  });
+}
+async function addTextures(list){
+  let skipped = 0; const loaded = [];
+  const known = new Set(state.textures.map(t => t.path));
+  for(const item of list){
+    if(known.has(item.path)) continue;                  // schon geladen
+    const t = await loadImageFile(item.file, item.path);
+    if(!t || t.w !== t.h || t.w > 128){ skipped++; continue; }
+    known.add(item.path);
+    loaded.push(t);
+  }
+  state.textures = state.textures.concat(loaded).sort((a,b)=>a.name.localeCompare(b.name));
+  renderTexGrid();
+  log(loaded.length + ' Texturen geladen' + (skipped ? ', ' + skipped + ' übersprungen' : ''), 'ok');
+}
+function addFiles(fileList){
+  const items = Array.from(fileList)
+    .filter(f => /\.(png|jpe?g)$/i.test(f.name))
+    .map(f => ({ file:f, path:f.webkitRelativePath || f.name }));
+  if(!items.length){ log('keine Bilddateien gefunden','er'); return; }
+  addTextures(items);
+}
+async function pickDirectory(){
+  if(!window.showDirectoryPicker){ $('#fDir').click(); return; }
+  try{
+    const dir = await window.showDirectoryPicker();
+    const found = [];
+    const walk = async (h, prefix, depth) => {
+      if(depth > 6) return;
+      for await (const [nm, entry] of h.entries()){
+        if(entry.kind === 'file' && /\.(png|jpe?g)$/i.test(nm)) found.push([entry, prefix + nm]);
+        else if(entry.kind === 'directory') await walk(entry, prefix + nm + '/', depth+1);
+      }
+    };
+    await walk(dir, '', 0);
+    log('scanne ' + found.length + ' Dateien ...');
+    const items = [];
+    for(const [fh, path] of found) items.push({ file: await fh.getFile(), path });
+    addTextures(items);
+  }catch(e){ if(e.name !== 'AbortError') log('Ordner: ' + e.message, 'er'); }
+}
+function renderTexGrid(){
+  const q = $('#search').value.trim().toLowerCase();
+  const list = q ? state.textures.filter(t => (t.path+t.name).toLowerCase().includes(q)) : state.textures;
+  const g = $('#texgrid'); g.innerHTML = '';
+  $('#texcount').textContent = '(' + list.length + '/' + state.textures.length + ')';
+  list.slice(0, 400).forEach(t => {
+    const d = document.createElement('div');
+    d.className = 'tex' + (state.selected === t ? ' sel' : '');
+    d.title = t.path + '  [' + t.w + 'x' + t.h + ']';
+    const c = document.createElement('canvas'); c.width = t.w; c.height = t.h;
+    c.getContext('2d').drawImage(t.img, 0, 0);
+    d.appendChild(c);
+    const n = document.createElement('div'); n.className = 'nm'; n.textContent = t.name;
+    d.appendChild(n);
+    d.onclick = () => { state.selected = t; renderTexGrid(); };
+    g.appendChild(d);
+  });
+}
+
+/* ------------------------- Flaechenbilder ------------------------- */
+const N = () => parseInt($('#res').value, 10) || 16;
+function faceImage(dir, n){
+  const s = state.slots[dir];
+  if(!s.tex) return null;
+  const c = document.createElement('canvas'); c.width = n; c.height = n;
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  ctx.save();
+  ctx.translate(n/2, n/2);
+  ctx.rotate(s.rot * Math.PI/180);
+  if(s.flip) ctx.scale(-1, 1);
+  ctx.drawImage(s.tex.img, -n/2, -n/2, n, n);
+  ctx.restore();
+  return ctx.getImageData(0,0,n,n).data;
+}
+
+/* ------------------------- Formgeometrie ------------------------- */
+function currentBoxes(){
+  const sh = SHAPES[$('#shape').value];
+  const arms = ['n','e','s','w'].filter(d => state.arms[d]);
+  let boxes = sh.f(arms).map(b => b.slice());
+  const rot = parseInt($('#rotY').value, 10);
+  for(let i=0;i<rot;i++) boxes = boxes.map(b => {
+    // (x,z) -> (16-z, x)
+    const nx0 = 16 - b[5], nx1 = 16 - b[2], nz0 = b[0], nz1 = b[3];
+    return [nx0, b[1], nz0, nx1, b[4], nz1];
+  });
+  return boxes;
+}
+function shapeCells(n){
+  const boxes = currentBoxes(), s = new Set(), k = n/16;
+  boxes.forEach(b => {
+    const x0=Math.round(b[0]*k), y0=Math.round(b[1]*k), z0=Math.round(b[2]*k);
+    const x1=Math.round(b[3]*k), y1=Math.round(b[4]*k), z1=Math.round(b[5]*k);
+    for(let x=x0;x<x1;x++) for(let y=y0;y<y1;y++) for(let z=z0;z<z1;z++)
+      if(x>=0&&y>=0&&z>=0&&x<n&&y<n&&z<n) s.add(key3(x,y,z));
+  });
+  return s;
+}
+
+/* ------------------------- Modell bauen ------------------------- */
+// -> { panels:[{p,dir,rgb}], solids:[{p,rgb,exp}], supports:[{p}], bbox }
+function buildModel(){
+  const n = N();
+  const alphaT = parseInt($('#alpha').value, 10) || 0;
+  const imgs = {}; DIRS.forEach(d => imgs[d] = faceImage(d, n));
+  const texel = (d, x,y,z) => {
+    const img = imgs[d]; if(!img) return null;
+    const [r,c] = TEX[d](x,y,z,n);
+    const i = (r*n + c)*4;
+    if(img[i+3] < alphaT) return null;
+    return [img[i], img[i+1], img[i+2]];
+  };
+  const M = { panels:[], solids:[], supports:[] };
+
+  if($('#mode').value === 'panelbox'){
+    // Vorlagenlogik: Kernskelett + 6 Panelebenen aussen herum
+    coreCells(n).forEach(p => M.supports.push({ p }));
+    DIRS.forEach(d => {
+      if(!imgs[d]) return;
+      for(let r=0;r<n;r++) for(let c=0;c<n;c++){
+        const i = (r*n+c)*4;
+        if(imgs[d][i+3] < alphaT) continue;
+        M.panels.push({ p: MAPBOX[d](r,c,n), dir:d, rgb:[imgs[d][i],imgs[d][i+1],imgs[d][i+2]] });
+      }
+    });
+  } else {
+    const cells = shapeCells(n);
+    const shellOnlyBlocks = $('#shell').value === 'block';
+    const fill = $('#fill').value;
+    const interior = [];
+    cells.forEach(k => {
+      const [x,y,z] = k.split(',').map(Number);
+      const exp = DIRS.filter(d => {
+        const v = DIR[d].v;
+        return !cells.has(key3(x+v[0], y+v[1], z+v[2]));
+      });
+      if(exp.length === 0){ interior.push([x,y,z]); return; }
+      const cols = exp.map(d => texel(d,x,y,z)).filter(Boolean);
+      if(!cols.length) return;                      // komplett transparent -> Zelle entfaellt
+      if(exp.length === 1 && !shellOnlyBlocks){
+        M.panels.push({ p:[x,y,z], dir:exp[0], rgb:cols[0] });
+      } else {
+        const avg = [0,1,2].map(i => Math.round(cols.reduce((a,c)=>a+c[i],0)/cols.length));
+        M.solids.push({ p:[x,y,z], rgb:avg, exp });
+      }
+    });
+    if(fill === 'solid') interior.forEach(p => M.supports.push({ p }));
+    else if(fill === 'skeleton'){
+      let lo=[1e9,1e9,1e9], hi=[-1e9,-1e9,-1e9];
+      interior.forEach(p => p.forEach((v,i)=>{ if(v<lo[i])lo[i]=v; if(v>hi[i])hi[i]=v; }));
+      const step = Math.max(2, Math.round(n/2.3));
+      const onL = (v,i) => v===lo[i] || v===hi[i] || ((v-lo[i]) % step === 0);
+      interior.forEach(p => {
+        if(p.filter((v,i)=>onL(v,i)).length >= 2) M.supports.push({ p });
+      });
+    }
+  }
+
+  const all = M.panels.concat(M.solids, M.supports);
+  const bb = { lo:[1e9,1e9,1e9], hi:[-1e9,-1e9,-1e9] };
+  all.forEach(o => o.p.forEach((v,i)=>{ if(v<bb.lo[i])bb.lo[i]=v; if(v>bb.hi[i])bb.hi[i]=v; }));
+  M.bbox = bb;
+  return M;
+}
+// Drahtkaefig-Skelett fuer Panel-Huelle (identisch zur Vorlage: 488 bei n=16)
+function coreCells(n){
+  const mid = [Math.floor((n-1)/2), Math.ceil((n-1)/2)];
+  const set = new Set(), out = [];
+  for(let x=1; x<=n; x++) for(let y=0; y<n; y++) for(let z=0; z<n; z++){
+    const onY = (y===0 || y===n-1), onZ = (z===0 || z===n-1);
+    let keep = false;
+    if((onY && (onZ || mid.includes(z))) || (onZ && mid.includes(y))) keep = true;
+    if((x===1 || x===n || x===mid[0]+1 || x===mid[1]+1) && (onY || onZ)) keep = true;
+    if((x===1 || x===n) && (mid.includes(y) || mid.includes(z))) keep = true;
+    if(keep && !set.has(key3(x,y,z))){ set.add(key3(x,y,z)); out.push([x,y,z]); }
+  }
+  return out;
+}
+
+/* ------------------------- 3D ------------------------- */
+let renderer, scene, camera, gShell, gSup, gGrid;
+let glOK = false;
+let cam = { th:-0.9, ph:0.5, r:34, tx:0, ty:0, cx:0, cy:0, cz:0 };
+function initGL(){
+  const vp = $('#viewport');
+  if(typeof THREE === 'undefined') throw new Error('three.js nicht geladen (offline?)');
+  renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true, preserveDrawingBuffer:true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  vp.appendChild(renderer.domElement);
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(45, 1, 0.1, 4000);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.78));
+  const d1 = new THREE.DirectionalLight(0xffffff, 0.65); d1.position.set(30,50,40); scene.add(d1);
+  const d2 = new THREE.DirectionalLight(0x00cfff, 0.28); d2.position.set(-40,-20,-30); scene.add(d2);
+  resize(); window.addEventListener('resize', resize);
+  bindOrbit(renderer.domElement);
+  (function loop(){
+    requestAnimationFrame(loop);
+    const x = cam.r*Math.cos(cam.ph)*Math.sin(cam.th);
+    const y = cam.r*Math.sin(cam.ph);
+    const z = cam.r*Math.cos(cam.ph)*Math.cos(cam.th);
+    camera.position.set(cam.cx+x+cam.tx, cam.cy+y+cam.ty, cam.cz+z);
+    camera.lookAt(cam.cx+cam.tx, cam.cy+cam.ty, cam.cz);
+    renderer.render(scene, camera);
+  })();
+  glOK = true;
+}
+function resize(){
+  const vp = $('#viewport'), w = vp.clientWidth || 400, h = vp.clientHeight || 400;
+  renderer.setSize(w, h, false); camera.aspect = w/h; camera.updateProjectionMatrix();
+}
+function bindOrbit(el){
+  let drag = 0, lx = 0, ly = 0;
+  el.addEventListener('contextmenu', e => e.preventDefault());
+  el.addEventListener('pointerdown', e => { drag = e.button===2?2:1; lx=e.clientX; ly=e.clientY; el.setPointerCapture(e.pointerId); });
+  el.addEventListener('pointerup', () => { drag = 0; });
+  el.addEventListener('pointercancel', () => { drag = 0; });
+  el.addEventListener('pointermove', e => {
+    if(!drag) return;
+    const dx = e.clientX-lx, dy = e.clientY-ly; lx = e.clientX; ly = e.clientY;
+    if(drag === 1){ cam.th -= dx*0.008; cam.ph = Math.max(-1.45, Math.min(1.45, cam.ph + dy*0.008)); }
+    else { cam.tx -= dx*0.03; cam.ty += dy*0.03; }
+  });
+  el.addEventListener('wheel', e => {
+    e.preventDefault();
+    cam.r = Math.max(3, Math.min(400, cam.r * (1 + Math.sign(e.deltaY)*0.1)));
+  }, { passive:false });
+}
+// Quad einer Zellflaeche in Richtung dir (Einheitswuerfel an Ursprung)
+const QUAD = {
+  px:[[1,0,0],[1,1,0],[1,1,1],[1,0,1]],
+  nx:[[0,0,1],[0,1,1],[0,1,0],[0,0,0]],
+  py:[[0,1,1],[1,1,1],[1,1,0],[0,1,0]],
+  ny:[[0,0,0],[1,0,0],[1,0,1],[0,0,1]],
+  pz:[[1,0,1],[1,1,1],[0,1,1],[0,0,1]],
+  nz:[[0,0,0],[0,1,0],[1,1,0],[1,0,0]]
+};
+function pushShellFace(P,C,Nn, x,y,z, dir, rgb){
+  const q = QUAD[dir], v = DIR[dir].v;
+  const a=[x+q[0][0],y+q[0][1],z+q[0][2]], b=[x+q[1][0],y+q[1][1],z+q[1][2]],
+        c=[x+q[2][0],y+q[2][1],z+q[2][2]], d=[x+q[3][0],y+q[3][1],z+q[3][2]];
+  [a,b,c, a,c,d].forEach(p => { P.push(p[0],p[1],p[2]); Nn.push(v[0],v[1],v[2]); C.push(rgb[0]/255,rgb[1]/255,rgb[2]/255); });
+}
+function rebuildView(){
+  const M = state.model = buildModel();
+  if(!glOK){ updateStats(M); return; }          // ohne WebGL: Modell/Export trotzdem nutzbar
+  [gShell,gSup,gGrid].forEach(o => { if(o){ scene.remove(o); o.geometry.dispose(); o.material.dispose(); } });
+  gShell = gSup = gGrid = null;
+
+  // Schale
+  const P=[],C=[],Nn=[];
+  M.panels.forEach(o => pushShellFace(P,C,Nn, o.p[0],o.p[1],o.p[2], o.dir, o.rgb));
+  M.solids.forEach(o => o.exp.forEach(d => pushShellFace(P,C,Nn, o.p[0],o.p[1],o.p[2], d, o.rgb)));
+  if(P.length){
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(P,3));
+    g.setAttribute('normal',   new THREE.Float32BufferAttribute(Nn,3));
+    g.setAttribute('color',    new THREE.Float32BufferAttribute(C,3));
+    gShell = new THREE.Mesh(g, new THREE.MeshLambertMaterial({
+      vertexColors:true, side:THREE.DoubleSide,
+      transparent: state.view.xray, opacity: state.view.xray ? 0.22 : 1,
+      depthWrite: !state.view.xray
+    }));
+    scene.add(gShell);
+  }
+  // Stuetzgitter: geschrumpfte Wuerfel, damit sie sichtbar im Inneren schweben
+  if(state.view.support && M.supports.length){
+    const P2=[],C2=[],N2=[], s=0.18, e=1-2*s;
+    M.supports.forEach(o => DIRS.forEach(d => {
+      const q = QUAD[d], v = DIR[d].v;
+      const pt = i => [ o.p[0]+s+q[i][0]*e, o.p[1]+s+q[i][1]*e, o.p[2]+s+q[i][2]*e ];
+      const a=pt(0),b=pt(1),c=pt(2),dd=pt(3);
+      [a,b,c,a,c,dd].forEach(p => { P2.push(p[0],p[1],p[2]); N2.push(v[0],v[1],v[2]); C2.push(0.27,0.44,0.56); });
+    }));
+    const g2 = new THREE.BufferGeometry();
+    g2.setAttribute('position', new THREE.Float32BufferAttribute(P2,3));
+    g2.setAttribute('normal',   new THREE.Float32BufferAttribute(N2,3));
+    g2.setAttribute('color',    new THREE.Float32BufferAttribute(C2,3));
+    gSup = new THREE.Mesh(g2, new THREE.MeshLambertMaterial({ vertexColors:true }));
+    scene.add(gSup);
+  }
+  // Zellgitter am Boden
+  if(state.view.grid){
+    const n = N(), L=[];
+    for(let i=0;i<=n;i++){ L.push(0,0,i, n,0,i); L.push(i,0,0, i,0,n); }
+    const g3 = new THREE.BufferGeometry();
+    g3.setAttribute('position', new THREE.Float32BufferAttribute(L,3));
+    gGrid = new THREE.LineSegments(g3, new THREE.LineBasicMaterial({ color:0x1d5f7a, transparent:true, opacity:0.45 }));
+    scene.add(gGrid);
+  }
+  const bb = M.bbox;
+  if(bb.hi[0] > -1e8){
+    cam.cx = (bb.lo[0]+bb.hi[0]+1)/2; cam.cy = (bb.lo[1]+bb.hi[1]+1)/2; cam.cz = (bb.lo[2]+bb.hi[2]+1)/2;
+  }
+  updateStats(M);
+}
+function resetView(){ cam.th=-0.9; cam.ph=0.5; cam.tx=0; cam.ty=0; cam.r = N()*2.4; }
+
+/* ------------------------- Export ------------------------- */
+function buildXml(){
+  const M = state.model || buildModel();
+  const size = $('#gridsize').value, arm = $('#armor').value, skin = $('#skin').value;
+  const name = ($('#bpname').value.trim() || 'mc_block').replace(/[^\w\-]/g,'_');
+  const isPrefab = $('#format').value === 'prefab';
+  const invert = $('#plateside').value === 'in';
+
+  const panelSub = size + 'ArmorPanel' + arm;
+  const coreSub  = arm === 'Heavy' ? (size + 'HeavyBlockArmorBlock') : (size + 'BlockArmorBlock');
+  const skinTag  = skin ? '\r\n              <SkinSubtypeId>' + skin + '</SkinSubtypeId>' : '';
+  const parts = [];
+  const colors = new Set();
+
+  const emit = (sub, p, orient, hsv) => {
+    let s = '            <MyObjectBuilder_CubeBlock xsi:type="MyObjectBuilder_CubeBlock">\r\n';
+    s += '              <SubtypeName>' + sub + '</SubtypeName>\r\n';
+    s += '              <EntityId>' + entityId() + '</EntityId>\r\n';
+    if(!(p[0]===0 && p[1]===0 && p[2]===0))
+      s += '              <Min x="' + p[0] + '" y="' + p[1] + '" z="' + p[2] + '" />\r\n';
+    if(orient) s += '              <BlockOrientation ' + orient + ' />\r\n';
+    s += '              <ColorMaskHSV x="' + hsv[0] + '" y="' + hsv[1] + '" z="' + hsv[2] + '" />';
+    s += skinTag + '\r\n            </MyObjectBuilder_CubeBlock>\r\n';
+    parts.push(s);
+  };
+  const hsvOf = rgb => {
+    const [h,s,v] = rgbToHsv(rgb[0],rgb[1],rgb[2]);
+    const a = [ num(h), num(s-0.8), num(v-0.55) ];
+    colors.add(a.join(',')); return a;
+  };
+  const gray = ['0','-0.8','-0.13'];
+
+  M.supports.forEach(o => emit(coreSub, o.p, null, gray));
+  M.solids.forEach(o  => emit(coreSub, o.p, null, hsvOf(o.rgb)));
+  M.panels.forEach(o  => emit(panelSub, o.p, DIR[invert ? OPP[o.dir] : o.dir].orient, hsvOf(o.rgb)));
+
+  const grid =
+'        <CubeGrid>\r\n' +
+'          <SubtypeName />\r\n' +
+'          <EntityId>' + entityId() + '</EntityId>\r\n' +
+'          <PersistentFlags>CastShadows InScene</PersistentFlags>\r\n' +
+'          <PositionAndOrientation>\r\n' +
+'            <Position x="0" y="0" z="0" />\r\n' +
+'            <Forward x="0" y="0" z="-1" />\r\n' +
+'            <Up x="0" y="1" z="0" />\r\n' +
+'            <Orientation><X>0</X><Y>0</Y><Z>0</Z><W>1</W></Orientation>\r\n' +
+'          </PositionAndOrientation>\r\n' +
+'          <GridSizeEnum>' + size + '</GridSizeEnum>\r\n' +
+'          <CubeBlocks>\r\n' + parts.join('') +
+'          </CubeBlocks>\r\n' +
+'          <IsStatic>false</IsStatic>\r\n' +
+'          <DisplayName>' + name + '</DisplayName>\r\n' +
+'          <DestructibleBlocks>true</DestructibleBlocks>\r\n' +
+(isPrefab ? '          <CreatePhysics>false</CreatePhysics>\r\n' : '') +
+'          <IsRespawnGrid>false</IsRespawnGrid>\r\n' +
+'          <LocalCoordSys>0</LocalCoordSys>\r\n' +
+'          <TargetingTargets />\r\n' +
+'        </CubeGrid>\r\n';
+
+  const head = '<?xml version="1.0"?>\r\n' +
+'<Definitions xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">\r\n';
+
+  const xml = isPrefab
+? head + '  <Prefabs>\r\n    <Prefab xsi:type="MyObjectBuilder_PrefabDefinition">\r\n' +
+  '      <Id Type="MyObjectBuilder_PrefabDefinition" Subtype="' + name + '" />\r\n' +
+  '      <CubeGrids>\r\n' + grid + '      </CubeGrids>\r\n' +
+  '      <EnvironmentType>None</EnvironmentType>\r\n    </Prefab>\r\n  </Prefabs>\r\n</Definitions>\r\n'
+: head + '  <ShipBlueprints>\r\n    <ShipBlueprint xsi:type="MyObjectBuilder_ShipBlueprintDefinition">\r\n' +
+  '      <Id Type="MyObjectBuilder_ShipBlueprintDefinition" Subtype="' + name + '" />\r\n' +
+  '      <DisplayName>' + name + '</DisplayName>\r\n' +
+  '      <CubeGrids>\r\n' + grid + '      </CubeGrids>\r\n' +
+  '      <WorkshopId>0</WorkshopId>\r\n      <OwnerSteamId>0</OwnerSteamId>\r\n      <Points>0</Points>\r\n' +
+  '    </ShipBlueprint>\r\n  </ShipBlueprints>\r\n</Definitions>\r\n';
+
+  return { xml, name, total:parts.length, colors:colors.size };
+}
+function updateStats(M){
+  const bb = M.bbox, has = bb.hi[0] > -1e8;
+  $('#stPanels').textContent = M.panels.length;
+  $('#stSolid').textContent  = M.solids.length;
+  $('#stSup').textContent    = M.supports.length;
+  const tot = M.panels.length + M.solids.length + M.supports.length;
+  $('#stTotal').textContent  = tot;
+  $('#stDim').textContent = has ? [0,1,2].map(i=>bb.hi[i]-bb.lo[i]+1).join('×') : '-';
+  const assigned = DIRS.filter(d => state.slots[d].tex).length;
+  $('#hdrstat').textContent = assigned ? (assigned + '/6 FLÄCHEN @ ' + N() + 'px') : 'NO TEXTURE';
+  $('#vpbadge').textContent = has ? (SHAPES[$('#shape').value].n + '  //  ' + tot + ' BLOCKS') : '';
+  $('#btnSbc').disabled = $('#btnZip').disabled = (tot === 0);
+  if(tot > 25000) log('sehr hohe Blockanzahl (' + tot + ') - SE wird zäh', 'wa');
+}
+function download(blob, fn){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = fn; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+
+/* ------------------------- UI ------------------------- */
+function renderShapeSelect(){
+  const s = $('#shape');
+  s.innerHTML = Object.keys(SHAPES).map(k => '<option value="'+k+'">'+SHAPES[k].n+'</option>').join('');
+}
+function renderFaces(){
+  const box = $('#faces'); box.innerHTML = '';
+  DIRS.forEach(d => {
+    const s = state.slots[d];
+    const el = document.createElement('div');
+    el.className = 'faceslot' + (s.tex ? ' has' : '');
+    const pv = document.createElement('canvas'); pv.className='fp'; pv.width=32; pv.height=32;
+    const pc = pv.getContext('2d'); pc.imageSmoothingEnabled = false;
+    if(s.tex){
+      pc.save(); pc.translate(16,16); pc.rotate(s.rot*Math.PI/180);
+      if(s.flip) pc.scale(-1,1);
+      pc.drawImage(s.tex.img, -16,-16, 32,32); pc.restore();
+    } else { pc.fillStyle='#0a121c'; pc.fillRect(0,0,32,32); }
+    el.appendChild(pv);
+    const info = document.createElement('div'); info.className='fi';
+    info.innerHTML = '<div class="fn">'+DIR[d].name+'</div><div class="ft">'+(s.tex?s.tex.name:'&mdash; leer &mdash;')+'</div>';
+    const bar = document.createElement('div'); bar.className='fb';
+    const mk = (t,fn) => { const b=document.createElement('button'); b.className='sm'; b.textContent=t; b.onclick=e=>{e.stopPropagation();fn();}; return b; };
+    bar.appendChild(mk('SET', () => assign(d)));
+    bar.appendChild(mk('⟳',  () => { s.rot=(s.rot+90)%360; refresh(); }));
+    bar.appendChild(mk('⇄',  () => { s.flip=!s.flip; refresh(); }));
+    bar.appendChild(mk('✕',  () => { s.tex=null; s.rot=0; s.flip=false; refresh(); }));
+    info.appendChild(bar); el.appendChild(info);
+    el.onclick = () => assign(d);
+    box.appendChild(el);
+  });
+}
+function renderBoxList(){
+  const l = $('#boxlist'); l.innerHTML = '';
+  state.customBoxes.forEach((b,i) => {
+    const d = document.createElement('div');
+    d.innerHTML = '<span style="color:var(--dim)">['+b[0]+','+b[1]+','+b[2]+'] &rarr; ['+b[3]+','+b[4]+','+b[5]+']</span>';
+    const x = document.createElement('span'); x.className='del'; x.textContent='✕';
+    x.onclick = () => { state.customBoxes.splice(i,1); renderBoxList(); refresh(); };
+    d.appendChild(x); l.appendChild(d);
+  });
+  if(!state.customBoxes.length) l.innerHTML = '<div style="color:var(--or)">keine Box &mdash; leeres Modell</div>';
+}
+function currentCustomBox(){
+  const L = Math.max(1,Math.min(16, +$('#cL').value));
+  const H = Math.max(1,Math.min(16, +$('#cH').value));
+  const B = Math.max(1,Math.min(16, +$('#cB').value));
+  let ox = +$('#oX').value, oy = +$('#oY').value, oz = +$('#oZ').value;
+  if($('#cCenter').checked){ ox = Math.floor((16-L)/2); oz = Math.floor((16-B)/2); }
+  ox = Math.max(0, Math.min(16-L, ox)); oy = Math.max(0, Math.min(16-H, oy)); oz = Math.max(0, Math.min(16-B, oz));
+  return [ox, oy, oz, ox+L, oy+H, oz+B];
+}
+function syncShapeUI(){
+  const sh = SHAPES[$('#shape').value];
+  $('#armsRow').style.display   = sh.arms   ? '' : 'none';
+  $('#customRow').style.display = sh.custom ? '' : 'none';
+  document.querySelectorAll('[data-arm]').forEach(b =>
+    b.classList.toggle('on', state.arms[b.dataset.arm]));
+  if(sh.custom && !state.customBoxes.length) state.customBoxes = [currentCustomBox()];
+  renderBoxList();
+}
+function assign(d){
+  if(!state.selected){ log('erst links eine Textur auswählen', 'wa'); return; }
+  state.slots[d].tex = state.selected;
+  refresh();
+}
+function refresh(){ renderFaces(); rebuildView(); }
+
+/* ------------------------- Events ------------------------- */
+$('#btnDir').onclick   = pickDirectory;
+$('#btnFiles').onclick = () => $('#fFiles').click();
+$('#fDir').onchange    = e => addFiles(e.target.files);
+$('#fFiles').onchange  = e => addFiles(e.target.files);
+$('#search').oninput   = renderTexGrid;
+['#shape','#rotY','#mode','#shell','#fill','#res','#alpha','#plateside'].forEach(s =>
+  $(s).onchange = $(s).oninput = () => { syncShapeUI(); refresh(); });
+document.querySelectorAll('[data-arm]').forEach(b => b.onclick = () => {
+  state.arms[b.dataset.arm] = !state.arms[b.dataset.arm];
+  b.classList.toggle('on', state.arms[b.dataset.arm]);
+  refresh();
+});
+$('#boxAdd').onclick   = () => { state.customBoxes.push(currentCustomBox()); renderBoxList(); refresh(); };
+$('#boxClear').onclick = () => { state.customBoxes = []; renderBoxList(); refresh(); };
+['#cL','#cH','#cB','#oX','#oY','#oZ','#cCenter'].forEach(s => $(s).onchange = () => {
+  if(state.customBoxes.length <= 1){ state.customBoxes = [currentCustomBox()]; renderBoxList(); refresh(); }
+});
+document.querySelectorAll('[data-apply]').forEach(b => b.onclick = () => {
+  if(!state.selected){ log('erst eine Textur auswählen', 'wa'); return; }
+  const m = b.dataset.apply;
+  const keys = m==='all' ? DIRS : m==='side' ? ['px','nx','pz','nz'] : ['py','ny'];
+  keys.forEach(k => state.slots[k].tex = state.selected);
+  refresh();
+});
+$('#tgSupport').onclick = e => { state.view.support = !state.view.support; e.target.classList.toggle('on', state.view.support); rebuildView(); };
+$('#tgXray').onclick    = e => { state.view.xray    = !state.view.xray;    e.target.classList.toggle('on', state.view.xray);    rebuildView(); };
+$('#tgGrid').onclick    = e => { state.view.grid    = !state.view.grid;    e.target.classList.toggle('on', state.view.grid);    rebuildView(); };
+$('#tgReset').onclick   = resetView;
+$('#btnSbc').onclick = () => {
+  const r = buildXml();
+  download(new Blob([r.xml], { type:'text/xml' }), 'bp.sbc');
+  log('bp.sbc: ' + r.total + ' Blöcke, ' + r.colors + ' Farben', 'ok');
+};
+$('#btnZip').onclick = async () => {
+  const r = buildXml();
+  const zip = new JSZip(), dir = zip.folder(r.name);
+  dir.file('bp.sbc', r.xml);
+  try{
+    if(!glOK) throw new Error('kein WebGL');
+    const c = document.createElement('canvas'); c.width=400; c.height=300;
+    const ctx = c.getContext('2d'); ctx.fillStyle='#080c12'; ctx.fillRect(0,0,400,300);
+    const rc = renderer.domElement, k = Math.min(400/rc.width, 300/rc.height);   // Seitenverhältnis erhalten
+    const dw = rc.width*k, dh = rc.height*k;
+    ctx.drawImage(rc, (400-dw)/2, (300-dh)/2, dw, dh);
+    dir.file('thumb.png', await new Promise(res => c.toBlob(res,'image/png')));
+  }catch(e){ log('Thumbnail fehlgeschlagen', 'wa'); }
+  download(await zip.generateAsync({ type:'blob' }), r.name + '.zip');
+  log('ZIP -> nach %AppData%\\SpaceEngineers\\Blueprints\\local entpacken', 'ok');
+};
+window.addEventListener('dragover', e => e.preventDefault());
+window.addEventListener('drop', e => { e.preventDefault(); if(e.dataTransfer.files.length) addFiles(e.dataTransfer.files); });
+
+renderShapeSelect();
+try{ initGL(); }catch(e){ log('3D-Ansicht nicht verfügbar: ' + e.message, 'er'); }
+resetView();
+syncShapeUI();
+renderFaces();
+rebuildView();
+log('bereit - Texturen laden, Form wählen');
+</script>
+</body>
+</html>

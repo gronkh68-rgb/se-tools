@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PixelArt → SBC Converter</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+:root{
+  --bg:#080c12;--panel:#0d141d;--panel2:#101a26;
+  --cyan:#00cfff;--green:#39ff14;--orange:#ff9a1f;--red:#ff3b3b;
+  --text:#c8d6e5;--dim:#5a7186;--border:#1b2a3a;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Share Tech Mono',monospace;min-height:100vh;padding:24px;
+  background-image:linear-gradient(rgba(0,207,255,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(0,207,255,.04) 1px,transparent 1px);
+  background-size:32px 32px}
+h1{font-family:'Orbitron',sans-serif;font-weight:900;font-size:22px;color:var(--cyan);letter-spacing:3px;text-transform:uppercase;text-shadow:0 0 12px rgba(0,207,255,.6)}
+.sub{color:var(--dim);font-size:12px;margin-top:4px;letter-spacing:1px}
+.wrap{max-width:1380px;margin:0 auto}
+header{margin-bottom:20px;border-bottom:1px solid var(--border);padding-bottom:14px}
+.layout{display:grid;grid-template-columns:370px 1fr;gap:16px}
+@media(max-width:960px){.layout{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--border);border-top:2px solid var(--cyan);padding:14px;margin-bottom:14px}
+.card.warn{border-top-color:var(--orange)}.card.ok{border-top-color:var(--green)}
+.card h2{font-family:'Orbitron',sans-serif;font-size:12px;font-weight:700;letter-spacing:2px;color:var(--cyan);text-transform:uppercase;margin-bottom:12px}
+.card.ok h2{color:var(--green)}.card.warn h2{color:var(--orange)}
+label{display:block;font-size:11px;color:var(--dim);letter-spacing:1px;margin:10px 0 4px;text-transform:uppercase}
+input[type=text],input[type=number],select{width:100%;background:var(--panel2);border:1px solid var(--border);color:var(--text);font-family:'Share Tech Mono',monospace;font-size:13px;padding:7px 9px;outline:none}
+input:focus,select:focus{border-color:var(--cyan);box-shadow:0 0 8px rgba(0,207,255,.35)}
+.row{display:flex;gap:10px}.row>div{flex:1}
+.chk{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;cursor:pointer;user-select:none}
+.chk input{accent-color:var(--cyan);width:15px;height:15px}
+.drop{border:2px dashed var(--border);padding:28px 14px;text-align:center;color:var(--dim);cursor:pointer;transition:.15s;margin-bottom:14px}
+.drop:hover,.drop.over{border-color:var(--cyan);color:var(--cyan);box-shadow:inset 0 0 24px rgba(0,207,255,.08)}
+.drop b{color:var(--text)}
+button{font-family:'Orbitron',sans-serif;font-weight:700;letter-spacing:2px;font-size:12px;text-transform:uppercase;padding:11px 16px;cursor:pointer;width:100%;background:transparent;border:1px solid var(--cyan);color:var(--cyan);transition:.15s;margin-top:10px}
+button:hover:not(:disabled){background:rgba(0,207,255,.12);box-shadow:0 0 14px rgba(0,207,255,.5)}
+button:disabled{border-color:var(--border);color:var(--dim);cursor:not-allowed}
+button.dl{border-color:var(--green);color:var(--green)}
+button.dl:hover:not(:disabled){background:rgba(57,255,20,.1);box-shadow:0 0 14px rgba(57,255,20,.5)}
+button.sm{padding:5px 10px;font-size:10px;letter-spacing:1px;margin-top:0;width:auto}
+/* Skin */
+.skin-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(74px,1fr));gap:5px;margin-top:8px;max-height:300px;overflow-y:auto}
+.skin-btn{background:var(--panel2);border:1px solid var(--border);padding:5px 3px;text-align:center;cursor:pointer;transition:.15s;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--dim);line-height:1.3;user-select:none}
+.skin-btn:hover{border-color:var(--cyan);color:var(--text)}
+.skin-btn.active{border-color:var(--cyan);color:var(--cyan);background:rgba(0,207,255,.1);box-shadow:0 0 6px rgba(0,207,255,.4)}
+.skin-btn .icon{font-size:15px;display:block;margin-bottom:2px}
+.skin-btn.dlc{border-color:#7755cc;color:#aa88ff}
+.skin-btn.dlc:hover{background:rgba(119,85,204,.1)}
+.skin-btn.dlc.active{background:rgba(119,85,204,.15);border-color:#aa88ff}
+.dlc-tag{font-size:9px;color:#7755cc}
+.skin-sep{grid-column:1/-1;font-size:10px;color:var(--dim);letter-spacing:1px;text-transform:uppercase;padding:5px 0 2px;border-top:1px solid var(--border);margin-top:3px}
+.skin-custom{display:flex;gap:6px;margin-top:6px}
+.skin-custom input{flex:1}
+/* Scale */
+.scale-row{display:flex;align-items:center;gap:10px;margin-top:6px}
+.scale-val{font-family:'Orbitron',sans-serif;color:var(--cyan);font-size:14px;min-width:20px;text-align:center}
+input[type=range]{flex:1;accent-color:var(--cyan);cursor:pointer;-webkit-appearance:none;height:4px;background:var(--border);outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--cyan);box-shadow:0 0 6px rgba(0,207,255,.7)}
+/* Vorschau */
+.preview-wrap{overflow:auto;max-height:580px;background:repeating-conic-gradient(#141c26 0 25%,#0d141d 0 50%) 0 0/16px 16px;border:1px solid var(--border);display:none;position:relative}
+#cvMain{image-rendering:pixelated;display:block;cursor:crosshair}
+#cvMain.pick{cursor:crosshair}
+/* Farbentfernung */
+.color-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.color-list{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;min-height:28px;align-items:center}
+.color-chip{display:flex;align-items:center;gap:4px;background:var(--panel2);border:1px solid var(--border);padding:3px 6px;font-size:11px;cursor:default}
+.color-chip .swatch{width:16px;height:16px;border:1px solid rgba(255,255,255,.2);flex-shrink:0}
+.color-chip .rm{cursor:pointer;color:var(--red);font-size:14px;line-height:1;padding:0 2px}
+.color-chip .rm:hover{color:#fff}
+.tol-row{display:flex;align-items:center;gap:8px}
+.tol-row label{margin:0;white-space:nowrap}
+/* Stats */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px;margin-top:12px}
+.stat{background:var(--panel2);border:1px solid var(--border);padding:8px 10px}
+.stat .k{font-size:10px;color:var(--dim);letter-spacing:1px;text-transform:uppercase}
+.stat .v{font-family:'Orbitron',sans-serif;font-size:14px;color:var(--green);margin-top:2px;text-shadow:0 0 8px rgba(57,255,20,.4)}
+.stat .v.warn{color:var(--orange);text-shadow:0 0 8px rgba(255,154,31,.4)}
+.stat .v.bad{color:var(--red);text-shadow:0 0 8px rgba(255,59,59,.4)}
+.msg{font-size:12px;margin-top:10px;line-height:1.5}
+.msg.o{color:var(--orange)}
+.help{font-size:12px;line-height:1.7;color:var(--text)}
+.help code{color:var(--cyan);background:var(--panel2);padding:1px 5px;border:1px solid var(--border)}
+.help li{margin-left:18px;margin-bottom:4px}
+.note{font-size:11px;color:var(--dim);margin-top:4px}
+.pvctrl{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+.pvbtn{font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:1px;padding:5px 10px;cursor:pointer;background:transparent;border:1px solid var(--border);color:var(--dim);transition:.15s}
+.pvbtn:hover,.pvbtn.on{border-color:var(--green);color:var(--green);background:rgba(57,255,20,.08)}
+.pvbtn.pick-on{border-color:var(--orange);color:var(--orange);background:rgba(255,154,31,.08)}
+.pvsep{color:var(--dim);font-size:11px;letter-spacing:1px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>&#9646; PixelArt → SBC Converter</h1>
+  <div class="sub">// PNG/JPG/GIF → Space Engineers Blueprint ZIP — Skin · Icon · Farbpipette · Fertig zum Einfügen</div>
+</header>
+
+<div class="layout">
+<!-- ═══════ LINKS ═══════ -->
+<div>
+  <div class="card">
+    <h2>Eingabe & Parameter</h2>
+    <div class="drop" id="drop">
+      <b>Bild hier ablegen</b><br>oder klicken zum Auswählen
+      <input type="file" id="file" accept="image/*" hidden>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>Blueprint-Name (SBC)</label>
+        <input type="text" id="bpname" value="PixelArt" maxlength="60">
+      </div>
+      <div>
+        <label>ZIP-Dateiname</label>
+        <input type="text" id="zipname" value="PixelArt" maxlength="80">
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>Rastergröße</label>
+        <select id="gridsize">
+          <option value="Large">Large (2,5 m)</option>
+          <option value="Small" selected>Small (0,5 m)</option>
+        </select>
+      </div>
+      <div>
+        <label>Blocktyp</label>
+        <select id="blocktype">
+          <option value="full" selected>Vollblock</option>
+          <option value="panel">Armor Panel</option>
+        </select>
+        <label class="chk" id="panelFlipRow" style="display:none"><input type="checkbox" id="panelFlip"> Panel gespiegelt (Rückseite nach vorne)</label>
+      </div>
+    </div>
+
+    <label>Pixel-Scale — 1 Pixel = N×N Blöcke</label>
+    <div class="scale-row">
+      <span class="scale-val" id="scaleVal">1</span>
+      <input type="range" id="pixscale" min="1" max="8" value="1" step="1">
+      <span style="color:var(--dim);font-size:11px">×</span>
+    </div>
+    <div class="note" id="scaleHint">→ 1 Pixel = 1×1 Block</div>
+
+    <label style="margin-top:10px">Zielgröße (Pixel)</label>
+    <div class="row">
+      <div>
+        <label>Breite</label>
+        <input type="number" id="maxw" value="128" min="1" max="2048" oninput="onSizeInput('w')">
+      </div>
+      <div style="display:flex;flex-direction:column;justify-content:flex-end;align-items:center;padding-bottom:1px">
+        <button class="sm" id="lockBtn" title="Seitenverhältnis sperren" onclick="toggleLock()" style="margin-top:20px;font-size:16px;padding:4px 8px;border-color:var(--cyan);color:var(--cyan)">🔒</button>
+      </div>
+      <div>
+        <label>Höhe</label>
+        <input type="number" id="maxh" value="128" min="1" max="2048" oninput="onSizeInput('h')">
+      </div>
+    </div>
+    <div class="note" id="sizeHint" style="color:var(--dim)">// Originalgröße: —</div>
+    <div class="row" style="margin-top:8px">
+      <div>
+        <label>Alpha-Schwelle</label>
+        <input type="number" id="alpha" value="128" min="0" max="255">
+      </div>
+      <div style="display:flex;align-items:flex-end">
+        <button class="sm" id="resetSize" style="width:100%;margin-bottom:1px" onclick="resetToOriginal()">Original</button>
+      </div>
+    </div>
+
+    <label>Ausrichtung</label>
+    <select id="plane">
+      <option value="wall" selected>Stehend (Wand, XY)</option>
+      <option value="floor">Liegend (Boden, XZ)</option>
+    </select>
+
+    <label class="chk"><input type="checkbox" id="static" checked> Statisches Grid (Station)</label>
+    <label class="chk"><input type="checkbox" id="makeicon" checked> Eingabebild als Blueprint-Icon (thumb.png)</label>
+
+    <button id="process" disabled>Verarbeiten</button>
+    <button id="download" class="dl" disabled>&#8681; Blueprint ZIP herunterladen</button>
+    <div class="msg o" id="warnmsg"></div>
+  </div>
+
+  <!-- SKIN -->
+  <div class="card">
+    <h2>Block-Textur (SkinSubtypeId)</h2>
+    <div class="note" style="margin-bottom:8px">Spieler braucht den Skin im Inventar — sonst Standard.</div>
+    <div class="skin-grid" id="skinGrid"></div>
+    <div style="margin-top:10px;font-size:11px;color:var(--dim);letter-spacing:1px;text-transform:uppercase">Eigene ID</div>
+    <div class="skin-custom">
+      <input type="text" id="skinCustom" placeholder="z.B. Concrete_Armor" maxlength="80">
+      <button class="sm" onclick="applyCustomSkin()">Setzen</button>
+    </div>
+    <div class="note" id="skinActive" style="color:var(--cyan);margin-top:6px">// Aktiv: Standard</div>
+  </div>
+
+  <!-- INSTALL -->
+  <div class="card warn">
+    <h2>Installation im Spiel</h2>
+    <div class="help">
+      <li>ZIP entpacken nach: <code>%AppData%\SpaceEngineers\Blueprints\local\</code></li>
+      <li>Erzeugt Ordner <code>&lt;Name&gt;\</code> mit <code>bp.sbc</code> und <code>thumb.png</code></li>
+      <li>Im Spiel: <code>F10</code> → Blueprint → <code>Strg+V</code></li>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ RECHTS ═══════ -->
+<div>
+  <div class="card ok">
+    <h2>Vorschau & Farbbearbeitung</h2>
+
+    <!-- Toolbar -->
+    <div class="pvctrl">
+      <span class="pvsep">RASTER:</span>
+      <button class="pvbtn" id="togGrid">AUS</button>
+      <span class="pvsep" style="margin-left:8px">PIPETTE:</span>
+      <button class="pvbtn" id="togPick">AUS</button>
+      <span class="pvsep" style="margin-left:8px;font-size:10px;color:var(--dim)">// Klick auf Pixel → Farbe zur Entfernen-Liste</span>
+    </div>
+
+    <!-- Farbentfernung -->
+    <div style="background:var(--panel2);border:1px solid var(--border);padding:10px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span style="font-size:11px;color:var(--dim);letter-spacing:1px;text-transform:uppercase">Farben entfernen</span>
+        <div class="tol-row">
+          <label>Toleranz:</label>
+          <input type="number" id="tolerance" value="10" min="0" max="255" style="width:60px;padding:4px 6px">
+        </div>
+        <button class="sm" id="clearColors" style="border-color:var(--red);color:var(--red)">Alle löschen</button>
+      </div>
+      <div class="color-list" id="colorList">
+        <span style="font-size:11px;color:var(--dim)">// Keine Farben gewählt — Pipette aktivieren und Pixel anklicken</span>
+      </div>
+    </div>
+
+    <div class="preview-wrap" id="previewWrap">
+      <canvas id="cvMain"></canvas>
+    </div>
+    <div class="note" id="pickHint" style="display:none;color:var(--orange);margin-top:4px">⬆ Pipette aktiv — Pixel anklicken um Farbe zu entfernen</div>
+
+    <div class="stats">
+      <div class="stat"><div class="k">Pixel</div><div class="v" id="s_res">—</div></div>
+      <div class="stat"><div class="k">Blöcke</div><div class="v" id="s_blocks">—</div></div>
+      <div class="stat"><div class="k">Farben</div><div class="v" id="s_colors">—</div></div>
+      <div class="stat"><div class="k">Entfernt</div><div class="v" id="s_removed" style="color:var(--orange)">—</div></div>
+      <div class="stat"><div class="k">Skin</div><div class="v" id="s_skin" style="font-size:10px;word-break:break-all">—</div></div>
+      <div class="stat"><div class="k">Größe im Spiel</div><div class="v" id="s_size" style="font-size:11px">—</div></div>
+    </div>
+    <div class="msg" id="statusmsg" style="color:var(--dim)">// SYSTEM BEREIT — Bild laden</div>
+  </div>
+
+  <div class="card">
+    <h2>Technik</h2>
+    <div class="help">
+      Nearest-Neighbor-Downscale auf Max-Breite, dann Pixel-Scale: 1 Pixel → N×N gleichfarbige Blöcke.
+      Farbe via <code>ColorMaskHSV (H, S−0.8, V−0.55)</code>. Skin via <code>&lt;SkinSubtypeId&gt;</code> nur wenn gewählt.
+      ZIP enthält <code>&lt;Name&gt;/bp.sbc</code> + optional <code>thumb.png</code> (128×128).
+      Pipetten-Toleranz = maximale RGB-Distanz (0 = exakter Treffer, 255 = alle).
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+<script>
+(() => {
+"use strict";
+const $ = id => document.getElementById(id);
+
+// ══════════════════════════════════════════
+//  SKINS
+// ══════════════════════════════════════════
+const SKINS = [
+  { id:"",                       label:"Standard",       icon:"⬜",dlc:false,note:"Kein Skin" },
+  { id:"Clean_Armor",            label:"Clean",          icon:"🟦",dlc:false,note:"Vanilla — glatt" },
+  { id:"Rusty_Armor",            label:"Rusty",          icon:"🟫",dlc:false,note:"Vanilla — verrostet (färbbar)" },
+  { id:"Battered_Armor",         label:"Battered",       icon:"🔩",dlc:false,note:"Vanilla — verbeult" },
+  { id:"CowMooFlage_Armor",      label:"CowMooFlage",    icon:"🐄",dlc:false,note:"Vanilla — Kuhflecken" },
+  { id:"RustNonColorable_Armor", label:"Rust Fixed",     icon:"🪣",dlc:false,note:"Vanilla — Rost ohne Färbung" },
+  { id:"Weldless",               label:"Weldless",       icon:"🔲",dlc:false,note:"Vanilla — ohne Schweißnähte" },
+  { id:"Corrugated",             label:"Corrugated",     icon:"〰️",dlc:false,note:"Vanilla — Wellblech" },
+  { id:"DigitalCamouflage_Armor",label:"Digital Camo",  icon:"🟩",dlc:true, note:"DLC: Style Pack" },
+  { id:"CarbonFibre_Armor",      label:"Carbon Fibre",  icon:"🔳",dlc:true, note:"DLC: Style Pack" },
+  { id:"Wood_Armor",             label:"Wood",           icon:"🪵",dlc:true, note:"DLC: Style Pack" },
+  { id:"Mossy_Armor",            label:"Mossy",          icon:"🌿",dlc:true, note:"DLC: Style Pack" },
+  { id:"SciFi_Armor",            label:"Sci-Fi",         icon:"🔷",dlc:true, note:"DLC: Sparks of the Future" },
+  { id:"Neon_Colorable_Surface", label:"Neon Surface",  icon:"💡",dlc:true, note:"DLC: Sparks of the Future" },
+  { id:"Neon_Colorable_Lights",  label:"Neon Lights",   icon:"🌟",dlc:true, note:"DLC: Sparks of the Future" },
+  { id:"Frozen_Armor",           label:"Frozen",         icon:"🧊",dlc:true, note:"DLC: Frostbite" },
+  { id:"Golden_Armor",           label:"Golden",         icon:"🥇",dlc:true, note:"DLC: Deluxe Edition" },
+  { id:"Silver_Armor",           label:"Silver",         icon:"🥈",dlc:true, note:"DLC: Economy" },
+  { id:"Glamour_Armor",          label:"Glamour",        icon:"✨",dlc:true, note:"DLC: Economy" },
+  { id:"Disco_Armor",            label:"Disco",          icon:"🪩",dlc:true, note:"DLC: Economy" },
+  { id:"Heavy_Rust_Armor",       label:"Heavy Rust",     icon:"⚙️",dlc:true, note:"DLC: Scrap Race" },
+  { id:"Dust_Armor",             label:"Dust",           icon:"🌫️",dlc:true, note:"DLC: Scrap Race" },
+  { id:"Concrete_Armor",         label:"Concrete",       icon:"🪨",dlc:true, note:"DLC: Scrap Race" },
+  { id:"Retrofuture_Armor",      label:"Retrofuture",    icon:"🚀",dlc:true, note:"DLC: Scrap Race" },
+  { id:"Hazard_Armor",           label:"Hazard",         icon:"⚠️",dlc:true, note:"DLC: Heavy Industry" },
+  { id:"WoodlandCamo_Armor",     label:"Woodland Camo", icon:"🌳",dlc:true, note:"DLC: Warfare 2" },
+  { id:"Plastic",                label:"Plastic",        icon:"🧴",dlc:true, note:"DLC: Automatons" },
+  { id:"Wartorn",                label:"Wartorn",        icon:"💥",dlc:true, note:"DLC: Decorative Pack #3" },
+];
+let activeSkinId = "";
+
+function buildSkinGrid() {
+  const grid = $("skinGrid"); grid.innerHTML = "";
+  let lastDlc = null;
+  for (const s of SKINS) {
+    if (s.dlc !== lastDlc) {
+      const sep = document.createElement("div");
+      sep.className = "skin-sep";
+      sep.textContent = s.dlc ? "── DLC ──" : "── Vanilla ──";
+      grid.appendChild(sep); lastDlc = s.dlc;
+    }
+    const btn = document.createElement("div");
+    btn.className = "skin-btn"+(s.dlc?" dlc":"")+(s.id===activeSkinId?" active":"");
+    btn.title = s.note;
+    btn.innerHTML = `<span class="icon">${s.icon}</span>${s.label}${s.dlc?'<br><span class="dlc-tag">DLC</span>':""}`;
+    btn.addEventListener("click", () => { activeSkinId = s.id; buildSkinGrid(); updateSkinLabel(); });
+    grid.appendChild(btn);
+  }
+}
+function updateSkinLabel() {
+  const s = SKINS.find(x => x.id === activeSkinId);
+  const label = s ? (s.id===""?"Standard (kein Skin)":s.id) : activeSkinId;
+  $("skinActive").textContent = `// Aktiv: ${label}`;
+  $("s_skin").textContent = activeSkinId || "—";
+}
+function applyCustomSkin() {
+  const v = $("skinCustom").value.trim(); if (!v) return;
+  activeSkinId = v; buildSkinGrid(); updateSkinLabel();
+}
+window.applyCustomSkin = applyCustomSkin;
+buildSkinGrid(); updateSkinLabel();
+
+// ══════════════════════════════════════════
+//  State
+// ══════════════════════════════════════════
+let img          = null;    // geladenes Image
+let rawPixels    = null;    // alle eingelesenen Pixel (ungefiltert)
+let rawW = 0, rawH = 0;     // Pixel-Dimensionen nach Downscale
+let pixGrid      = null;    // Int32Array: Position → Index in rawPixels (-1 = leer)
+let removedColors = [];     // [{r,g,b, hex}]
+let showGrid     = false;
+let pickMode     = false;
+
+const CELL_BASE  = 6;       // Vorschau-px pro Pixel bei Scale=1
+
+// ══════════════════════════════════════════
+//  Hilfsfunktionen
+// ══════════════════════════════════════════
+function sanitize(s)   { return s.replace(/[^A-Za-z0-9_\- ]/g,"").trim(); }
+function setStatus(t,err){ $("statusmsg").textContent=t; $("statusmsg").style.color=err?"var(--red)":"var(--dim)"; }
+function r6(x)         { return Math.round(x*1e6)/1e6; }
+function xmlEsc(s)     { return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+function rgbDist(r1,g1,b1,r2,g2,b2) {
+  return Math.sqrt((r1-r2)**2 + (g1-g2)**2 + (b1-b2)**2);
+}
+let tolSq = 0;   // Toleranz² — wird vor jedem Durchlauf neu gelesen (nicht pro Pixel aus dem DOM)
+function refreshTol() {
+  const t = Math.max(0, parseInt($("tolerance").value, 10) || 0);
+  tolSq = t * t;
+}
+function isRemoved(r, g, b) {
+  for (const c of removedColors) {
+    const dr = r-c.r, dg = g-c.g, db = b-c.b;
+    if (dr*dr + dg*dg + db*db <= tolSq) return true;
+  }
+  return false;
+}
+// Vorschau-Zellgröße: Canvas darf nicht über Browser-Limits wachsen (bei 2048 px × Scale 8 wäre er riesig)
+function cellSize() {
+  const want = CELL_BASE * parseInt($("pixscale").value, 10);
+  return Math.max(1, Math.min(want, Math.floor(4096 / Math.max(rawW, rawH, 1))));
+}
+function toHex(r,g,b) {
+  return "#"+[r,g,b].map(v=>v.toString(16).padStart(2,"0")).join("");
+}
+
+// Name-Sync: bpname → zipname wenn zipname noch = bpname-default
+let zipUserEdited = false;
+$("zipname").addEventListener("input", () => { zipUserEdited = true; });
+$("bpname").addEventListener("input", () => {
+  if (!zipUserEdited) $("zipname").value = $("bpname").value;
+});
+
+// ══════════════════════════════════════════
+//  Datei laden
+// ══════════════════════════════════════════
+const drop = $("drop"), fileIn = $("file");
+drop.addEventListener("click", () => fileIn.click());
+drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("over"); });
+drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+drop.addEventListener("drop", e => { e.preventDefault(); drop.classList.remove("over"); if(e.dataTransfer.files.length) loadFile(e.dataTransfer.files[0]); });
+fileIn.addEventListener("change", () => { if(fileIn.files.length) loadFile(fileIn.files[0]); });
+
+function loadFile(f) {
+  if (!f.type.startsWith("image/")) { setStatus("// FEHLER: keine Bilddatei",true); return; }
+  const url = URL.createObjectURL(f);
+  const im = new Image();
+  im.onload = () => {
+    img = im;
+    $("process").disabled = false;
+    const base = sanitize(f.name.replace(/\.[^.]+$/,"")) || "PixelArt";
+    $("bpname").value = base;
+    if (!zipUserEdited) $("zipname").value = base;
+    setStatus(`// Bild geladen: ${im.width}×${im.height}px`);
+    $("maxw").value = im.width;
+    $("maxh").value = im.height;
+    $("sizeHint").textContent = `// Originalgröße: ${im.width}×${im.height}px`;
+    URL.revokeObjectURL(url);
+  };
+  im.onerror = () => setStatus("// FEHLER: Bild nicht dekodierbar",true);
+  im.src = url;
+}
+
+// ══════════════════════════════════════════
+//  Verarbeitung: Pixel einlesen (RAW)
+// ══════════════════════════════════════════
+$("process").addEventListener("click", () => {
+  if (!img) return;
+  const targetW = Math.max(1,Math.min(2048,parseInt($("maxw").value,10)||128));
+  const targetH = Math.max(1,Math.min(2048,parseInt($("maxh").value,10)||128));
+  const alphaT  = Math.max(0,Math.min(255,parseInt($("alpha").value,10)||0));
+
+  // Auf Zielgröße skalieren (Nearest-Neighbor via Canvas)
+  const w = targetW, h = targetH;
+
+  const c = document.createElement("canvas");
+  c.width=w; c.height=h;
+  const ctx = c.getContext("2d",{willReadFrequently:true});
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(img,0,0,w,h);
+  const data = ctx.getImageData(0,0,w,h).data;
+
+  rawPixels = [];
+  rawW = w; rawH = h;
+  pixGrid = new Int32Array(w*h).fill(-1);
+  // Vollständig transparente Pixel (a=0) nie übernehmen, auch bei Schwelle 0
+  const aMin = Math.max(1, alphaT);
+  for (let y=0;y<h;y++) for (let x=0;x<w;x++) {
+    const i=(y*w+x)*4;
+    if (data[i+3]<aMin) continue;
+    pixGrid[y*w+x] = rawPixels.length;
+    rawPixels.push({x,y,r:data[i],g:data[i+1],b:data[i+2]});
+  }
+
+  // removedColors bei neuer Verarbeitung NICHT zurücksetzen — Nutzer behält Auswahl
+  renderPreview();
+  updateStats();
+  $("download").disabled = false;
+  setStatus(`// Verarbeitet: ${rawPixels.length} Pixel (${w}×${h})`);
+});
+
+// ══════════════════════════════════════════
+//  Gefilterte Pixel (mit removedColors)
+// ══════════════════════════════════════════
+function getVisiblePixels() {
+  if (!rawPixels) return [];
+  if (removedColors.length === 0) return rawPixels;
+  refreshTol();
+  return rawPixels.filter(p => !isRemoved(p.r, p.g, p.b));
+}
+
+// ══════════════════════════════════════════
+//  Vorschau
+// ══════════════════════════════════════════
+function renderPreview() {
+  if (!rawPixels) return;
+  const cellPx = cellSize();
+  const cv = $("cvMain"), wrap = $("previewWrap");
+
+  cv.width  = rawW * cellPx;
+  cv.height = rawH * cellPx;
+  wrap.style.display = "block";
+
+  const ctx = cv.getContext("2d");
+  ctx.clearRect(0,0,cv.width,cv.height);
+
+  refreshTol();
+
+  for (const p of rawPixels) {
+    const removed = isRemoved(p.r,p.g,p.b);
+    if (removed) {
+      // Entfernte Pixel: Schachbrett-Muster (Transparenz-Indikator)
+      ctx.fillStyle = (Math.floor(p.x/1)+Math.floor(p.y/1))%2===0?"#1a2233":"#111927";
+      ctx.fillRect(p.x*cellPx, p.y*cellPx, cellPx, cellPx);
+    } else {
+      ctx.fillStyle = `rgb(${p.r},${p.g},${p.b})`;
+      ctx.fillRect(p.x*cellPx, p.y*cellPx, cellPx, cellPx);
+    }
+  }
+
+  if (showGrid) drawGrid(ctx, cellPx);
+}
+
+function drawGrid(ctx, cellPx) {
+  const w = rawW*cellPx, h = rawH*cellPx;
+  ctx.strokeStyle = "rgba(0,207,255,0.22)"; ctx.lineWidth = 0.5;
+  for (let x=0;x<=rawW;x++) { ctx.beginPath();ctx.moveTo(x*cellPx,0);ctx.lineTo(x*cellPx,h);ctx.stroke(); }
+  for (let y=0;y<=rawH;y++) { ctx.beginPath();ctx.moveTo(0,y*cellPx);ctx.lineTo(w,y*cellPx);ctx.stroke(); }
+}
+
+// ══════════════════════════════════════════
+//  Pipette
+// ══════════════════════════════════════════
+$("togPick").addEventListener("click", () => {
+  pickMode = !pickMode;
+  $("togPick").textContent = pickMode ? "AN" : "AUS";
+  $("togPick").classList.toggle("pick-on", pickMode);
+  $("cvMain").style.cursor = pickMode ? "crosshair" : "default";
+  $("pickHint").style.display = pickMode ? "block" : "none";
+});
+
+$("cvMain").addEventListener("click", e => {
+  if (!pickMode || !rawPixels) return;
+  const hit = pixelAt(e);
+  if (!hit) return;
+
+  // Duplikat-Check (exakt gleich oder innerhalb Toleranz)
+  if (removedColors.some(c => rgbDist(hit.r,hit.g,hit.b,c.r,c.g,c.b)===0)) return;
+
+  addRemovedColor(hit.r, hit.g, hit.b);
+});
+
+// Hover-Koordinate anzeigen
+$("cvMain").addEventListener("mousemove", e => {
+  if (!pickMode || !rawPixels) return;
+  const hit = pixelAt(e);
+  if (hit) $("pickHint").textContent = `⬆ Pipette aktiv — [${hit.x},${hit.y}] rgb(${hit.r},${hit.g},${hit.b}) — Klick zum Entfernen`;
+});
+
+// Pixel unter dem Mauszeiger (berücksichtigt CSS-Skalierung des Canvas)
+function pixelAt(e) {
+  if (!pixGrid) return null;
+  const cv = $("cvMain"), rect = cv.getBoundingClientRect();
+  if (!rect.width || !rect.height) return null;
+  const cellPx = cv.width / rawW;
+  const px = Math.floor((e.clientX - rect.left) * cv.width  / rect.width  / cellPx);
+  const py = Math.floor((e.clientY - rect.top)  * cv.height / rect.height / cellPx);
+  if (px < 0 || py < 0 || px >= rawW || py >= rawH) return null;
+  const idx = pixGrid[py*rawW + px];
+  return idx < 0 ? null : rawPixels[idx];
+}
+
+function addRemovedColor(r,g,b) {
+  const hex = toHex(r,g,b);
+  removedColors.push({r,g,b,hex});
+  rebuildColorList();
+  renderPreview();
+  updateStats();
+}
+
+function rebuildColorList() {
+  const list = $("colorList");
+  list.innerHTML = "";
+  if (removedColors.length===0) {
+    list.innerHTML = '<span style="font-size:11px;color:var(--dim)">// Keine Farben gewählt — Pipette aktivieren und Pixel anklicken</span>';
+    return;
+  }
+  for (let i=0;i<removedColors.length;i++) {
+    const c = removedColors[i];
+    const chip = document.createElement("div");
+    chip.className = "color-chip";
+    chip.innerHTML = `<div class="swatch" style="background:${c.hex}"></div><span>${c.hex}</span><span class="rm" title="Entfernen">×</span>`;
+    chip.querySelector(".rm").addEventListener("click", () => {
+      removedColors.splice(i,1);
+      rebuildColorList();
+      renderPreview();
+      updateStats();
+    });
+    list.appendChild(chip);
+  }
+}
+
+$("clearColors").addEventListener("click", () => {
+  removedColors = [];
+  rebuildColorList();
+  if (rawPixels) { renderPreview(); updateStats(); }
+});
+
+// Toleranz-Änderung → Vorschau sofort
+$("tolerance").addEventListener("input", () => { if(rawPixels) { renderPreview(); updateStats(); } });
+
+// ══════════════════════════════════════════
+//  Stats
+// ══════════════════════════════════════════
+function updateStats() {
+  if (!rawPixels) return;
+  const scale = parseInt($("pixscale").value,10);
+  const visible = getVisiblePixels();
+  const n = visible.length * scale * scale;
+  const removed = rawPixels.length - visible.length;
+
+  $("s_res").textContent = `${rawW}×${rawH}`;
+  const bEl = $("s_blocks");
+  bEl.textContent = n.toLocaleString("de-DE");
+  bEl.className = "v"+(n>200000?" bad":n>50000?" warn":"");
+  const colorSet = new Set(visible.map(p=>(p.r<<16)|(p.g<<8)|p.b));
+  $("s_colors").textContent = colorSet.size;
+  $("s_removed").textContent = removed > 0 ? removed.toLocaleString("de-DE") : "—";
+  const cell = $("gridsize").value==="Large"?2.5:0.5;
+  $("s_size").textContent = `${(rawW*scale*cell).toFixed(1)}×${(rawH*scale*cell).toFixed(1)} m`;
+  $("warnmsg").textContent = n>200000?"⚠ >200k Blöcke — Paste kann einfrieren!":n>50000?"⚠ >50k Blöcke — Paste dauert länger.":"";
+}
+
+// ══════════════════════════════════════════
+//  Größen-Lock (proportional)
+// ══════════════════════════════════════════
+let locked = true;
+
+function toggleLock() {
+  locked = !locked;
+  $("lockBtn").textContent       = locked ? "🔒" : "🔓";
+  $("lockBtn").style.borderColor = locked ? "var(--cyan)" : "var(--orange)";
+  $("lockBtn").style.color       = locked ? "var(--cyan)" : "var(--orange)";
+}
+window.toggleLock = toggleLock;
+
+function onSizeInput(changed) {
+  if (!locked || !img) return;
+  const ratio = img.width / img.height;
+  if (changed === "w") {
+    const w = parseInt($("maxw").value, 10);
+    if (!isNaN(w) && w > 0) $("maxh").value = Math.max(1, Math.round(w / ratio));
+  } else {
+    const h = parseInt($("maxh").value, 10);
+    if (!isNaN(h) && h > 0) $("maxw").value = Math.max(1, Math.round(h * ratio));
+  }
+}
+window.onSizeInput = onSizeInput;
+
+function resetToOriginal() {
+  if (!img) return;
+  $("maxw").value = img.width;
+  $("maxh").value = img.height;
+  $("sizeHint").textContent = `// Originalgröße: ${img.width}×${img.height}px`;
+}
+window.resetToOriginal = resetToOriginal;
+
+// Panel-Flip Checkbox nur bei Panel sichtbar
+$("blocktype").addEventListener("change", () => {
+  $("panelFlipRow").style.display = $("blocktype").value === "panel" ? "" : "none";
+});
+
+// Controls die Vorschau aktualisieren
+$("pixscale").addEventListener("input", () => {
+  const v = parseInt($("pixscale").value,10);
+  $("scaleVal").textContent = v;
+  $("scaleHint").textContent = `→ 1 Pixel = ${v}×${v} Block${v>1?"e":""}`;
+  if(rawPixels){renderPreview();updateStats();}
+});
+$("gridsize").addEventListener("change", () => { if(rawPixels) updateStats(); });
+$("togGrid").addEventListener("click", () => {
+  showGrid=!showGrid;
+  $("togGrid").textContent=showGrid?"AN":"AUS";
+  $("togGrid").classList.toggle("on",showGrid);
+  if(rawPixels) renderPreview();
+});
+
+// ══════════════════════════════════════════
+//  RGB → ColorMaskHSV
+// ══════════════════════════════════════════
+function rgbToMask(r,g,b) {
+  r/=255;g/=255;b/=255;
+  const max=Math.max(r,g,b),min=Math.min(r,g,b),d=max-min;
+  let hue=0;
+  if(d!==0){
+    if(max===r)      hue=((g-b)/d)%6;
+    else if(max===g) hue=(b-r)/d+2;
+    else             hue=(r-g)/d+4;
+    hue/=6; if(hue<0)hue+=1;
+  }
+  const s=max===0?0:d/max;
+  return [r6(hue),r6(s-0.8),r6(max-0.55)];
+}
+
+// ══════════════════════════════════════════
+//  SBC bauen
+// ══════════════════════════════════════════
+function buildSbc() {
+  const visible  = getVisiblePixels();
+  const name     = xmlEsc(sanitize($("bpname").value)||"PixelArt");
+  const gridSize = $("gridsize").value;
+  const isPanel  = $("blocktype").value==="panel";
+  const isStatic = $("static").checked;
+  const wall     = $("plane").value==="wall";
+  const scale    = parseInt($("pixscale").value,10);
+  const skinId   = activeSkinId.trim();
+  const subtype  = gridSize==="Large"
+    ?(isPanel?"LargeArmorPanelLight":"LargeBlockArmorBlock")
+    :(isPanel?"SmallArmorPanelLight":"SmallBlockArmorBlock");
+  const entityId = String(Date.now())+String(Math.floor(Math.random()*900)+100);
+  const skinLine = skinId?`\n            <SkinSubtypeId>${xmlEsc(skinId)}</SkinSubtypeId>`:"";
+  const totalH   = rawH*scale;
+
+  const blocks=[];
+  for (const p of visible) {
+    const [mh,ms,mv]=rgbToMask(p.r,p.g,p.b);
+    for(let dy=0;dy<scale;dy++) for(let dx=0;dx<scale;dx++){
+      const bx=p.x*scale+dx;
+      const by=wall?(totalH-1-(p.y*scale+dy)):0;
+      const bz=wall?0:(p.y*scale+dy);
+      // Panel-Default in SE: Fläche zeigt in X-Richtung (YZ-Ebene, x=konstant)
+      // Vollblock: symmetrisch, XY-Ebene (z=konstant) ist fine
+      // Für Panel wall: x=0 (fix), y=Pixel.y, z=Pixel.x
+      // Für Panel floor: x=Pixel.x, y=0, z=Pixel.y (wie Vollblock)
+      let px, py, pz;
+      if (isPanel && wall) {
+        // YZ-Ebene: Fläche zeigt in X-Richtung (SE-Default für stehende Panels)
+        // Gespiegelt: x=1, Z läuft rückwärts (sonst wäre Bild auch horizontal gespiegelt)
+        const flip = $("panelFlip").checked;
+        const totalW = rawW * scale;
+        px = flip ? 1 : 0;
+        py = totalH - 1 - (p.y * scale + dy);
+        pz = flip ? (totalW - 1 - (p.x * scale + dx)) : (p.x * scale + dx);
+      } else {
+        px = bx; py = by; pz = bz;
+      }
+      blocks.push(
+`          <MyObjectBuilder_CubeBlock xsi:type="MyObjectBuilder_CubeBlock">
+            <SubtypeName>${subtype}</SubtypeName>
+            <Min x="${px}" y="${py}" z="${pz}" />
+            <ColorMaskHSV x="${mh}" y="${ms}" z="${mv}" />${skinLine}
+          </MyObjectBuilder_CubeBlock>`);
+    }
+  }
+
+  return `<?xml version="1.0"?>
+<Definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <ShipBlueprints>
+    <ShipBlueprint xsi:type="MyObjectBuilder_ShipBlueprintDefinition">
+      <Id Type="MyObjectBuilder_ShipBlueprintDefinition" Subtype="${name}" />
+      <DisplayName>${name}</DisplayName>
+      <CubeGrids>
+        <CubeGrid>
+          <SubtypeName />
+          <EntityId>${entityId}</EntityId>
+          <PersistentFlags>CastShadows InScene</PersistentFlags>
+          <PositionAndOrientation>
+            <Position x="0" y="0" z="0" />
+            <Forward x="0" y="0" z="-1" />
+            <Up x="0" y="1" z="0" />
+            <Orientation><X>0</X><Y>0</Y><Z>0</Z><W>1</W></Orientation>
+          </PositionAndOrientation>
+          <LocalPositionAndOrientation xsi:nil="true" />
+          <GridSizeEnum>${gridSize}</GridSizeEnum>
+          <CubeBlocks>
+${blocks.join("\n")}
+          </CubeBlocks>
+          <DisplayName>${name}</DisplayName>
+          <DestructibleBlocks>true</DestructibleBlocks>
+          <IsRespawnGrid>false</IsRespawnGrid>
+          <LocalCoordSys>0</LocalCoordSys>
+          <TargetingTargets />
+          <IsStatic>${isStatic}</IsStatic>
+        </CubeGrid>
+      </CubeGrids>
+      <EnvironmentType>None</EnvironmentType>
+      <WorkshopId>0</WorkshopId>
+      <OwnerSteamId>0</OwnerSteamId>
+      <Points>0</Points>
+    </ShipBlueprint>
+  </ShipBlueprints>
+</Definitions>
+`;
+}
+
+// ══════════════════════════════════════════
+//  thumb.png aus Originalbild
+// ══════════════════════════════════════════
+function buildThumb() {
+  // Originalbild (img) direkt verwenden — vor Downscale/Verarbeitung
+  const ICON = 128;
+  const cv  = document.createElement("canvas");
+  cv.width  = ICON; cv.height = ICON;
+  const ctx = cv.getContext("2d");
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, ICON, ICON);
+  const sc = Math.min(ICON / img.width, ICON / img.height);
+  const dw = Math.round(img.width  * sc);
+  const dh = Math.round(img.height * sc);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(img, Math.floor((ICON-dw)/2), Math.floor((ICON-dh)/2), dw, dh);
+  return new Promise(res => cv.toBlob(res, "image/png"));
+}
+
+// ══════════════════════════════════════════
+//  ZIP Download
+
+// ══════════════════════════════════════════
+$("download").addEventListener("click", async () => {
+  if (!rawPixels) return;
+  const visible = getVisiblePixels();
+  if (visible.length===0) { setStatus("// Keine sichtbaren Pixel — Farbfilter pruefen",true); return; }
+  if (typeof JSZip === "undefined") { setStatus("// FEHLER: JSZip nicht geladen (offline?) — Seite mit Internet neu laden",true); return; }
+  $("download").disabled=true;
+  try {
+    setStatus("// Generiere SBC ...");
+
+    const bpName  = sanitize($("bpname").value)||"PixelArt";
+    const zipName = ($("zipname").value.trim()||bpName).replace(/[\\\/:*?"<>|]/g,"_");
+
+    const zip=new JSZip();
+    const folder=zip.folder(bpName);
+    folder.file("bp.sbc", buildSbc());
+
+    if ($("makeicon").checked && img) {
+      setStatus("// Generiere Icon ...");
+      folder.file("thumb.png", await buildThumb());
+    }
+
+    setStatus("// Packe ZIP ...");
+    const blob=await zip.generateAsync({type:"blob",compression:"DEFLATE",compressionOptions:{level:6}});
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download=`${zipName}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+
+    const scale=parseInt($("pixscale").value,10);
+    const total=visible.length*scale*scale;
+    setStatus(`// ZIP: ${zipName}.zip — ${total.toLocaleString("de-DE")} Bloecke, ${(blob.size/1024).toFixed(0)} KB`);
+  } catch (err) {
+    console.error(err);
+    setStatus("// FEHLER beim Erzeugen: "+err.message,true);
+  } finally {
+    $("download").disabled=false;
+  }
+});
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1119 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OBJ → SE Voxelizer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Share+Tech+Mono&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#080c12;--bg2:#0a1520;--bg3:#050810;
+  --border:#0d2a45;--cyan:#00cfff;--green:#39ff14;
+  --orange:#ff8c00;--red:#ff4444;--dim:#3a6a8a;--dimmer:#1a3a5a;
+}
+html,body{height:100%;overflow:hidden;}
+body{background:var(--bg);color:#c0d8e8;font-family:'Share Tech Mono',monospace;font-size:12px;
+  display:flex;flex-direction:column;
+  background-image:linear-gradient(rgba(0,207,255,.025) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(0,207,255,.025) 1px,transparent 1px);
+  background-size:24px 24px;}
+
+/* Header */
+header{background:linear-gradient(90deg,#05090f,#0a1520);border-bottom:1px solid var(--border);
+  padding:10px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+header h1{font-family:'Orbitron',monospace;font-size:16px;color:var(--cyan);
+  text-shadow:0 0 12px #00cfff88;letter-spacing:3px;}
+header p{color:var(--dimmer);font-size:9px;margin-top:2px;}
+
+/* Status */
+#status{padding:4px 20px;font-size:10px;border-bottom:1px solid var(--border);
+  min-height:22px;flex-shrink:0;transition:all .2s;}
+#status.ok{background:#081208;color:var(--green);}
+#status.err{background:#1a0a0a;color:var(--red);}
+#status.info{background:#090c14;color:var(--dim);}
+#status.warn{background:#120d00;color:var(--orange);}
+#status.busy{background:#090c14;color:var(--orange);animation:pulse 1s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+
+/* Main layout */
+.main{flex:1;display:flex;overflow:hidden;}
+
+/* Sidebar */
+.sidebar{width:270px;min-width:250px;background:var(--bg3);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden;flex-shrink:0;}
+.sb-scroll{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px;}
+.sb-bottom{padding:10px 14px;border-top:1px solid var(--border);flex-shrink:0;}
+
+/* Viewer */
+.viewer-wrap{flex:1;position:relative;background:#040810;overflow:hidden;}
+#canvas{width:100%;height:100%;display:block;}
+
+/* Drop zone overlay */
+#dropZone{position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:12px;pointer-events:none;
+  transition:background .2s;}
+#dropZone.drag-over{background:#00cfff11;pointer-events:all;}
+.drop-icon{font-size:40px;opacity:.3;}
+.drop-title{font-family:'Orbitron',monospace;font-size:14px;color:#1a4a6a;letter-spacing:2px;}
+.drop-sub{font-size:10px;color:#0d2a45;text-align:center;line-height:1.8;}
+.drop-btn{background:#0a1a2a;border:1px solid #0d3a5a;color:var(--cyan);padding:7px 16px;
+  border-radius:4px;cursor:pointer;font-family:'Share Tech Mono',monospace;font-size:11px;
+  letter-spacing:1px;pointer-events:all;}
+.drop-btn:hover{background:#0d2a40;}
+
+/* Viewer controls */
+.vctrl{position:absolute;top:8px;left:8px;right:8px;display:flex;gap:5px;flex-wrap:wrap;pointer-events:none;}
+.vcg{display:flex;align-items:center;gap:5px;background:#04080fcc;border:1px solid var(--border);
+  border-radius:4px;padding:3px 8px;pointer-events:all;backdrop-filter:blur(3px);}
+.vcl{color:var(--dim);font-size:9px;white-space:nowrap;}
+.vcv{color:var(--cyan);font-size:10px;min-width:28px;text-align:right;}
+.vcb{background:none;border:1px solid var(--dimmer);color:var(--dim);padding:2px 8px;
+  border-radius:3px;cursor:pointer;font-family:'Share Tech Mono',monospace;font-size:9px;pointer-events:all;}
+.vcb:hover,.vcb.on{border-color:var(--cyan);color:var(--cyan);}
+.vcb.on{background:#0d2a4588;}
+
+/* Block info */
+#blockInfo{position:absolute;bottom:8px;left:8px;background:#04080fcc;border:1px solid var(--border);
+  border-left:3px solid var(--cyan);border-radius:4px;padding:5px 10px;font-size:10px;
+  display:none;pointer-events:none;backdrop-filter:blur(3px);}
+
+/* Stats overlay */
+#statsOverlay{position:absolute;bottom:8px;right:8px;background:#04080fcc;border:1px solid var(--border);
+  border-radius:4px;padding:5px 10px;font-size:9px;display:none;
+  pointer-events:none;backdrop-filter:blur(3px);line-height:1.8;}
+
+/* Shared form */
+.sec{font-family:'Orbitron',monospace;font-size:8px;color:var(--dimmer);letter-spacing:2px;
+  border-bottom:1px solid #0d2030;padding-bottom:3px;margin-bottom:7px;}
+.fl{color:var(--dim);font-size:10px;display:block;margin-bottom:2px;}
+input[type=text],select{width:100%;background:#060a10;color:var(--cyan);border:1px solid var(--border);
+  border-radius:3px;padding:3px 5px;font-family:'Share Tech Mono',monospace;font-size:10px;margin-top:2px;}
+select option{background:#060a10;}
+input[type=range]{-webkit-appearance:none;width:100%;height:3px;background:var(--dimmer);
+  border-radius:2px;outline:none;cursor:pointer;margin-top:4px;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:11px;height:11px;
+  background:var(--cyan);border-radius:50%;cursor:pointer;}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+
+/* Slider row */
+.slrow{display:flex;align-items:center;gap:8px;}
+.slrow input[type=range]{flex:1;}
+.slval{color:var(--cyan);font-size:10px;min-width:36px;text-align:right;}
+
+/* Checkbox */
+.cbrow{display:flex;align-items:center;gap:6px;cursor:pointer;font-size:10px;color:var(--dim);margin-top:4px;}
+.cbrow input{width:auto;margin:0;}
+
+/* File list */
+.flist{margin-top:6px;font-size:9px;color:var(--dim);line-height:2;}
+.flist .f-ok{color:var(--green);}
+.flist .f-mtl{color:var(--orange);}
+.flist .f-tex{color:#a080ff;}
+.flist .f-err{color:var(--red);}
+
+/* Buttons */
+.btn{display:block;width:100%;padding:6px 10px;border-radius:4px;cursor:pointer;
+  font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:1px;text-align:center;border:none;margin-top:5px;}
+.btn-p{background:#0a1a2a;border:1px solid #0d3a5a;color:var(--cyan);}
+.btn-p:hover{background:#0d2a40;}
+.btn-go{background:linear-gradient(90deg,#004a7a,#00508a);border:1px solid var(--cyan);
+  color:var(--cyan);font-family:'Orbitron',monospace;font-size:11px;letter-spacing:2px;
+  padding:10px;box-shadow:0 0 12px #00cfff33;margin-top:8px;}
+.btn-go:hover{background:linear-gradient(90deg,#005a8a,#0060aa);}
+.btn-go:disabled{background:#0d1a24;color:#1a4a6a;border-color:#0d2a3a;box-shadow:none;cursor:default;}
+.btn-dl{background:#061208;border:1px solid #0d4a20;color:var(--green);
+  box-shadow:0 0 6px #39ff1425;padding:8px;}
+.btn-dl:hover{background:#0a1f0a;}
+
+/* Result */
+.res-box{display:none;margin-top:8px;padding:8px;background:#060f08;
+  border:1px solid #0d3a20;border-radius:4px;}
+.res-box .rc{color:var(--green);font-size:11px;}
+.res-box .rd{color:var(--dim);font-size:9px;margin-top:2px;}
+.hint{padding:4px 6px;background:#080c12;border:1px solid var(--border);
+  border-radius:3px;font-size:8px;color:#2a4a6a;margin-top:5px;word-break:break-all;}
+
+/* Palette */
+.palette{display:flex;flex-wrap:wrap;gap:3px;margin-top:8px;}
+.pswatch{width:13px;height:13px;border-radius:2px;border:1px solid #1a2940;cursor:default;}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:5px;}
+::-webkit-scrollbar-track{background:var(--bg3);}
+::-webkit-scrollbar-thumb{background:#0d2a45;border-radius:3px;}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>OBJ → SE VOXELIZER</h1>
+    <p>3D MODELL · SURFACE VOXELIZATION · SPACE ENGINEERS BLUEPRINT</p>
+  </div>
+  <label class="drop-btn" style="font-size:10px">
+    📂 DATEIEN LADEN
+    <input type="file" id="fileInput" multiple accept=".obj,.mtl,.png,.jpg,.jpeg" style="display:none" onchange="handleFiles(this.files)">
+  </label>
+</header>
+
+<div id="status" class="info">BEREIT — OBJ Datei laden oder hineinziehen</div>
+
+<div class="main">
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sb-scroll">
+
+      <!-- File status -->
+      <div>
+        <div class="sec">GELADENE DATEIEN</div>
+        <div id="fileList" class="flist" style="color:var(--dimmer)">Keine Dateien geladen</div>
+      </div>
+
+      <!-- Resolution -->
+      <div>
+        <div class="sec">AUFLÖSUNG</div>
+        <label class="fl">Max. Dimension (Blöcke)
+          <div class="slrow" style="margin-top:4px">
+            <input type="range" id="sRes" min="8" max="200" value="64"
+              oninput="sResV.textContent=this.value;updateEstimate()">
+            <span class="slval" id="sResV">64</span>
+          </div>
+        </label>
+        <div id="estInfo" style="font-size:9px;color:var(--dimmer);margin-top:5px;line-height:1.7"></div>
+      </div>
+
+      <!-- Block settings -->
+      <div>
+        <div class="sec">SE BLOCK</div>
+        <div class="row2">
+          <label class="fl">Grid
+            <select id="sGrid">
+              <option value="Large">Large</option>
+              <option value="Small">Small</option>
+            </select>
+          </label>
+          <label class="fl">Typ
+            <select id="sBlock">
+              <option value="BlockArmorBlock">Armor Block</option>
+              <option value="BlockArmorSlope">Armor Slope</option>
+              <option value="HeavyBlockArmorBlock">Heavy Armor</option>
+            </select>
+          </label>
+        </div>
+        <label class="fl" style="margin-top:6px">Blueprint Name
+          <input type="text" id="sBpName" value="OBJ_Voxel">
+        </label>
+      </div>
+
+      <!-- Voxel options -->
+      <div>
+        <div class="sec">VOXEL OPTIONEN</div>
+        <label class="cbrow">
+          <input type="checkbox" id="sSolid">
+          Solid füllen (Innenraum)
+        </label>
+        <label class="cbrow">
+          <input type="checkbox" id="sYup">
+          Z-up-Modell (Blender) aufrichten — SE und die meisten OBJ sind Y-up
+        </label>
+        <label class="cbrow">
+          <input type="checkbox" id="sMirrorZ">
+          Z-Achse spiegeln
+        </label>
+      </div>
+
+      <!-- Color -->
+      <div>
+        <div class="sec">FARBE</div>
+        <label class="fl">Farb-Quantisierung (Buckets)
+          <div class="slrow" style="margin-top:4px">
+            <input type="range" id="sBuckets" min="2" max="128" value="32"
+              oninput="sBucketsV.textContent=this.value">
+            <span class="slval" id="sBucketsV">32</span>
+          </div>
+        </label>
+        <label class="fl" style="margin-top:6px">Helligkeit Offset
+          <div class="slrow" style="margin-top:4px">
+            <input type="range" id="sBright" min="-50" max="50" value="0"
+              oninput="sBrightV.textContent=(this.value>0?'+':'')+this.value+'%'">
+            <span class="slval" id="sBrightV" style="min-width:40px">0%</span>
+          </div>
+        </label>
+        <label class="fl" style="margin-top:6px">Sättigungs Boost
+          <div class="slrow" style="margin-top:4px">
+            <input type="range" id="sSat" min="-50" max="50" value="0"
+              oninput="sSatV.textContent=(this.value>0?'+':'')+this.value+'%'">
+            <span class="slval" id="sSatV" style="min-width:40px">0%</span>
+          </div>
+        </label>
+      </div>
+
+      <!-- Color palette -->
+      <div>
+        <div class="sec">FARB-PALETTE (<span id="palCount">0</span> Farben)</div>
+        <div id="palette" class="palette"></div>
+      </div>
+
+    </div>
+
+    <!-- Bottom: convert + download -->
+    <div class="sb-bottom">
+      <button class="btn btn-go" id="btnGo" onclick="doVoxelize()" disabled>▶ VOXELISIEREN</button>
+      <div id="resBox" class="res-box">
+        <div class="rc" id="resCount"></div>
+        <div class="rd" id="resMeta"></div>
+        <button class="btn btn-dl" onclick="doDownload()">↓ BLUEPRINT HERUNTERLADEN</button>
+        <div class="hint" id="resHint"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Viewer -->
+  <div class="viewer-wrap" id="viewerWrap">
+    <canvas id="canvas"></canvas>
+
+    <!-- Controls bar -->
+    <div class="vctrl">
+      <div class="vcg">
+        <span class="vcl">Y-LAYER</span>
+        <input type="range" id="vLayerMin" min="0" max="200" value="0" style="width:55px;pointer-events:all" oninput="updateLayerFilter()">
+        <span class="vcv" id="vLMinV">0</span>
+        <span class="vcl">–</span>
+        <input type="range" id="vLayerMax" min="0" max="200" value="200" style="width:55px;pointer-events:all" oninput="updateLayerFilter()">
+        <span class="vcv" id="vLMaxV">200</span>
+      </div>
+      <button class="vcb" id="btnWire" onclick="toggleWire()">WIRE</button>
+      <button class="vcb on" id="btnSolid3d" onclick="toggle3dSolid()" title="Aus: verdeckte Innen-Blöcke ausblenden">SOLID</button>
+      <button class="vcb" onclick="resetCam()">⌂ RESET</button>
+      <div class="vcg" style="margin-left:auto">
+        <span class="vcl" id="vcInfo">—</span>
+      </div>
+    </div>
+
+    <!-- Block info tooltip -->
+    <div id="blockInfo">
+      <span id="biPos" style="color:var(--cyan)"></span>
+      <span id="biColor" style="color:var(--dim);font-size:9px;margin-left:8px"></span>
+    </div>
+
+    <!-- Stats overlay -->
+    <div id="statsOverlay">
+      <div style="color:var(--dim)">BLOCK-INFO</div>
+      <div id="statBlocks" style="color:var(--green)"></div>
+      <div id="statColors" style="color:var(--cyan)"></div>
+      <div id="statSize" style="color:var(--orange)"></div>
+    </div>
+
+    <!-- Empty state -->
+    <div id="dropZone">
+      <div class="drop-icon">⬡</div>
+      <div class="drop-title">3D VOXELIZER</div>
+      <div class="drop-sub">
+        OBJ-Datei hier hineinziehen<br>
+        oder Schaltfläche oben rechts<br><br>
+        <span style="color:#0d2a45">Unterstützt: .obj .mtl .png .jpg</span>
+      </div>
+      <label class="drop-btn">
+        📂 DATEIEN AUSWÄHLEN
+        <input type="file" multiple accept=".obj,.mtl,.png,.jpg,.jpeg" style="display:none" onchange="handleFiles(this.files)">
+      </label>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════════════════
+let objData = null;
+let textures = {};   // filename → ImageData
+let voxelMap = null; // Map: "x,y,z" → [r,g,b,count]
+let quantMap = null; // qKey → [h,s,v]
+let lastXml = null;
+let wireframe = false;
+let show3dSolid = true;
+let usedBuckets = 32;   // Farb-Buckets zum Zeitpunkt des Voxelisierens (Vorschau/Export müssen dieselben nutzen)
+let voxBounds = null;   // {min:[x,y,z], max:[x,y,z]} der erzeugten Voxel
+let previewGeo = null;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// THREE.JS
+// ═══════════════════════════════════════════════════════════════════════════
+let scene, camera, renderer, controls;
+let meshGroups = [];
+let raycaster, mouse;
+let pickData = []; // per instance: {x,y,z,hsv}
+
+function initThree() {
+  const canvas = document.getElementById('canvas');
+  const wrap = document.getElementById('viewerWrap');
+  if (typeof THREE === 'undefined' || !THREE.OrbitControls) throw new Error('three.js konnte nicht geladen werden (offline?)');
+
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setClearColor(0x040810, 1);
+
+  scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x040810, 0.005);
+
+  // Grid
+  const grid = new THREE.GridHelper(500, 50, 0x0d2a45, 0x0a1a2a);
+  grid.position.y = -0.5;
+  scene.add(grid);
+
+  addLights();
+
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  camera = new THREE.PerspectiveCamera(55, w / h, 0.1, 5000);
+  camera.position.set(60, 45, 60);
+
+  controls = new THREE.OrbitControls(camera, canvas);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.07;
+  controls.screenSpacePanning = false;
+
+  raycaster = new THREE.Raycaster();
+  mouse = new THREE.Vector2();
+
+  canvas.addEventListener('click', onPick);
+
+  resize();
+  window.addEventListener('resize', resize);
+
+  (function loop() {
+    requestAnimationFrame(loop);
+    controls.update();
+    renderer.render(scene, camera);
+  })();
+}
+
+function addLights() {
+  scene.add(new THREE.AmbientLight(0x304050, 0.9));
+  const d1 = new THREE.DirectionalLight(0x00cfff, 0.55);
+  d1.position.set(1, 2, 1.5);
+  scene.add(d1);
+  const d2 = new THREE.DirectionalLight(0x4488aa, 0.3);
+  d2.position.set(-1, 0.5, -1);
+  scene.add(d2);
+  const d3 = new THREE.DirectionalLight(0x334455, 0.2);
+  d3.position.set(0, -1, 0);
+  scene.add(d3);
+}
+
+function resize() {
+  const wrap = document.getElementById('viewerWrap');
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  renderer.setSize(w, h, false);
+  if (camera) { camera.aspect = w/h; camera.updateProjectionMatrix(); }
+}
+
+function clearMeshes() {
+  meshGroups.forEach(m => { scene.remove(m); m.material.dispose(); if (m.dispose) m.dispose(); });
+  meshGroups = [];
+  pickData = [];
+  if (previewGeo) { previewGeo.dispose(); previewGeo = null; }
+}
+
+// Voxel ist "innen", wenn alle 6 Nachbarn belegt sind (für SOLID = aus)
+function isInterior(x, y, z) {
+  return voxelMap.has(`${x+1},${y},${z}`) && voxelMap.has(`${x-1},${y},${z}`) &&
+         voxelMap.has(`${x},${y+1},${z}`) && voxelMap.has(`${x},${y-1},${z}`) &&
+         voxelMap.has(`${x},${y},${z+1}`) && voxelMap.has(`${x},${y},${z-1}`);
+}
+
+function buildPreview(fit) {
+  if (!voxelMap || !quantMap || !scene) return;
+  clearMeshes();
+
+  const lMin = parseInt(document.getElementById('vLayerMin').value);
+  const lMax = parseInt(document.getElementById('vLayerMax').value);
+  const buckets = usedBuckets;
+
+  // Group visible voxels by quantized color
+  const groups = new Map(); // qKey → [{x,y,z}]
+  let total = 0;
+
+  for (const [key, c] of voxelMap) {
+    const [x, y, z] = key.split(',').map(Number);
+    if (y < lMin || y > lMax) continue;
+    if (!show3dSolid && isInterior(x, y, z)) continue;
+    const [r, g, b] = avgColor(c);
+    const qKey = quantize(r, g, b, buckets);
+    if (!groups.has(qKey)) groups.set(qKey, []);
+    groups.get(qKey).push({ x, y, z });
+    total++;
+  }
+
+  const geo = previewGeo = new THREE.BoxGeometry(0.96, 0.96, 0.96);
+  const dummy = new THREE.Object3D();
+  let pickOffset = 0;
+
+  for (const [qKey, positions] of groups) {
+    const hsv = quantMap.get(qKey) || [0, -1, 0];
+    const [r, g, b] = hsvToRgb01(...hsv);
+    const mat = new THREE.MeshLambertMaterial({
+      color: new THREE.Color(r, g, b),
+      wireframe
+    });
+    const mesh = new THREE.InstancedMesh(geo, mat, positions.length);
+    positions.forEach(({ x, y, z }, i) => {
+      dummy.position.set(x, y, z);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(i, dummy.matrix);
+      pickData[pickOffset + i] = { x, y, z, hsv };
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.userData.pickOffset = pickOffset;
+    pickOffset += positions.length;
+    scene.add(mesh);
+    meshGroups.push(mesh);
+  }
+
+  document.getElementById('vcInfo').textContent = `${total} Blöcke`;
+  document.getElementById('dropZone').style.display = 'none';
+
+  // Kamera nur beim ersten Aufbau / RESET zentrieren, nicht bei jedem Layer-Slider-Schritt
+  if (fit && voxBounds) {
+    const { min, max } = voxBounds;
+    const cx = (min[0] + max[0]) / 2, cy = (min[1] + max[1]) / 2, cz = (min[2] + max[2]) / 2;
+    const maxD = Math.max(max[0] - min[0], max[1] - min[1], max[2] - min[2], 1);
+    controls.target.set(cx, cy, cz);
+    camera.position.set(cx + maxD*0.9, cy + maxD*0.65, cz + maxD*0.9);
+    controls.update();
+  }
+}
+
+function toggleWire() {
+  wireframe = !wireframe;
+  document.getElementById('btnWire').classList.toggle('on', wireframe);
+  meshGroups.forEach(m => { if (m.material) m.material.wireframe = wireframe; });
+}
+
+function toggle3dSolid() {
+  show3dSolid = !show3dSolid;
+  document.getElementById('btnSolid3d').classList.toggle('on', show3dSolid);
+  buildPreview(false);
+}
+
+function resetCam() {
+  if (!voxelMap || voxelMap.size === 0) {
+    controls.target.set(0,0,0);
+    camera.position.set(60,45,60);
+    return;
+  }
+  buildPreview(true);
+}
+
+function updateLayerFilter() {
+  let mn = parseInt(document.getElementById('vLayerMin').value);
+  let mx = parseInt(document.getElementById('vLayerMax').value);
+  if (mn > mx) { document.getElementById('vLayerMin').value = mx; mn = mx; }
+  document.getElementById('vLMinV').textContent = mn;
+  document.getElementById('vLMaxV').textContent = mx;
+  if (voxelMap) buildPreview(false);
+}
+
+function onPick(e) {
+  const canvas = document.getElementById('canvas');
+  const rect = canvas.getBoundingClientRect();
+  mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+
+  let closest = null, minD = Infinity;
+  for (const mesh of meshGroups) {
+    const hits = raycaster.intersectObject(mesh);
+    if (hits.length && hits[0].distance < minD) {
+      minD = hits[0].distance;
+      const off = mesh.userData.pickOffset || 0;
+      closest = pickData[off + (hits[0].instanceId || 0)];
+    }
+  }
+  const el = document.getElementById('blockInfo');
+  if (closest) {
+    document.getElementById('biPos').textContent = `(${closest.x}, ${closest.y}, ${closest.z})`;
+    document.getElementById('biColor').textContent =
+      `HSV(${closest.hsv[0].toFixed(2)}, ${closest.hsv[1].toFixed(2)}, ${closest.hsv[2].toFixed(2)})`;
+    el.style.display = 'block';
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DRAG & DROP
+// ═══════════════════════════════════════════════════════════════════════════
+function setupDrop() {
+  const wrap = document.getElementById('viewerWrap');
+  if (!wrap) return;
+  wrap.addEventListener('dragover', e => { e.preventDefault(); document.getElementById('dropZone').classList.add('drag-over'); });
+  wrap.addEventListener('dragleave', () => document.getElementById('dropZone').classList.remove('drag-over'));
+  // Ein einziger Drop-Handler am body (vorher liefen wrap- und body-Handler beide → Dateien wurden doppelt geladen)
+  document.body.addEventListener('dragover', e => e.preventDefault());
+  document.body.addEventListener('drop', e => {
+    e.preventDefault();
+    document.getElementById('dropZone').classList.remove('drag-over');
+    handleFiles(e.dataTransfer.files);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FILE LOADING
+// ═══════════════════════════════════════════════════════════════════════════
+async function handleFiles(files) {
+  if (!files || !files.length) return;
+  files = [...files];   // FileList wird durch das Zurücksetzen des Inputs leer
+  document.querySelectorAll('input[type=file]').forEach(i => i.value = '');   // gleiche Datei erneut wählbar
+  st('Lade Dateien...', 'info');
+  textures = {};
+
+  let objText = null, mtlText = null;
+  const listEl = document.getElementById('fileList');
+  listEl.innerHTML = '';
+
+  for (const f of files) {
+    const ext = f.name.split('.').pop().toLowerCase();
+    const div = document.createElement('div');
+
+    if (ext === 'obj') {
+      objText = await f.text();
+      div.className = 'f-ok';
+      div.textContent = `✓ ${f.name} (${fmt(f.size)})`;
+    } else if (ext === 'mtl') {
+      mtlText = await f.text();
+      div.className = 'f-mtl';
+      div.textContent = `◈ ${f.name} (${fmt(f.size)})`;
+    } else if (['png','jpg','jpeg'].includes(ext)) {
+      const ok = await loadTexture(f);
+      div.className = ok ? 'f-tex' : 'f-err';
+      div.textContent = `${ok?'◉':'✗'} ${f.name} (${fmt(f.size)})`;
+    } else {
+      div.className = 'f-err';
+      div.textContent = `✗ ${f.name} — nicht unterstützt`;
+    }
+    listEl.appendChild(div);
+  }
+
+  if (!objText) {
+    st('Keine .obj Datei gefunden!', 'err');
+    return;
+  }
+
+  // Parse
+  const mats = mtlText ? parseMTL(mtlText) : {};
+  try {
+    objData = parseOBJ(objText, mats);
+  } catch (e) {
+    objData = null;
+    st('OBJ konnte nicht gelesen werden: ' + e.message, 'err');
+    return;
+  }
+
+  if (!objData.faces.length) { objData = null; document.getElementById('btnGo').disabled = true; st('OBJ enthält keine Dreiecke!', 'err'); return; }
+
+  // Altes Ergebnis verwerfen
+  voxelMap = quantMap = lastXml = null;
+  clearMeshes();
+  document.getElementById('resBox').style.display = 'none';
+  document.getElementById('statsOverlay').style.display = 'none';
+  document.getElementById('vcInfo').textContent = '—';
+
+  // Auto-name
+  const firstName = files.find(f => /\.obj$/i.test(f.name))?.name || 'model.obj';
+  document.getElementById('sBpName').value =
+    firstName.replace(/\.obj$/i, '').replace(/[^a-zA-Z0-9_]/g, '_');
+
+  updateEstimate();
+  document.getElementById('btnGo').disabled = false;
+  st(`✓ ${objData.faces.length} Dreiecke, ${objData.verts.length} Vertices, ${Object.keys(mats).length} Materialien`, 'ok');
+}
+
+async function loadTexture(file) {
+  return new Promise(res => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = img.naturalWidth; c.height = img.naturalHeight;
+      c.getContext('2d').drawImage(img, 0, 0);
+      textures[file.name.toLowerCase()] = c.getContext('2d').getImageData(0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      res(true);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); res(false); };
+    img.src = url;
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// OBJ / MTL PARSER
+// ═══════════════════════════════════════════════════════════════════════════
+function parseMTL(text) {
+  const mats = {};
+  let cur = null;
+  for (const raw of text.split('\n')) {
+    const line = raw.trim();
+    if (line.startsWith('newmtl ')) {
+      cur = line.slice(7).trim();
+      mats[cur] = { Kd: [0.7,0.7,0.7], Ka: [0,0,0], Ke: [0,0,0], map_Kd: null };
+    } else if (!cur) continue;
+    else if (line.startsWith('Kd ')) {
+      const p = line.split(/\s+/);
+      mats[cur].Kd = [parseFloat(p[1])||0, parseFloat(p[2])||0, parseFloat(p[3])||0];
+    } else if (line.startsWith('Ka ')) {
+      const p = line.split(/\s+/);
+      mats[cur].Ka = [parseFloat(p[1])||0, parseFloat(p[2])||0, parseFloat(p[3])||0];
+    } else if (line.startsWith('Ke ')) {
+      const p = line.split(/\s+/);
+      mats[cur].Ke = [parseFloat(p[1])||0, parseFloat(p[2])||0, parseFloat(p[3])||0];
+    } else if (line.startsWith('map_Kd ')) {
+      // Optionen (z.B. "-s 1 1 1") vor dem Dateinamen entfernen, nur Basisnamen behalten
+      mats[cur].map_Kd = line.slice(7).trim().replace(/^(-\w+(\s+[-\d.]+)*\s+)+/, '')
+        .replace(/\\/g,'/').split('/').pop().toLowerCase();
+    }
+  }
+  return mats;
+}
+
+function parseOBJ(text, mats) {
+  const verts = [], uvs = [], normals = [], faces = [];
+  let curMat = null;
+
+  for (const raw of text.split('\n')) {
+    const line = raw.trim();
+    if (!line || line[0] === '#') continue;
+    const p = line.split(/\s+/);
+    if (p[0] === 'v') {
+      verts.push([parseFloat(p[1])||0, parseFloat(p[2])||0, parseFloat(p[3])||0]);
+    } else if (p[0] === 'vt') {
+      uvs.push([parseFloat(p[1])||0, parseFloat(p[2])||0]);
+    } else if (p[0] === 'vn') {
+      normals.push([parseFloat(p[1])||0, parseFloat(p[2])||0, parseFloat(p[3])||0]);
+    } else if (p[0] === 'usemtl') {
+      curMat = p.slice(1).join(' ');
+    } else if (p[0] === 'f') {
+      const vi=[], ti=[], ni=[];
+      // Negative Indizes sind relativ zum bisherigen Ende der Liste
+      const ix = (s, len) => { const k = parseInt(s, 10); return k < 0 ? len + k : k - 1; };
+      for (let i=1; i<p.length; i++) {
+        const s = p[i].split('/');
+        vi.push(ix(s[0], verts.length));
+        ti.push(s[1]&&s[1]!=='' ? ix(s[1], uvs.length) : -1);
+        ni.push(s[2]&&s[2]!=='' ? ix(s[2], normals.length) : -1);
+      }
+      if (vi.length < 3 || vi.some(k => !(k >= 0 && k < verts.length))) continue;   // kaputte Fläche überspringen
+      // Fan triangulation
+      for (let i=1; i<vi.length-1; i++) {
+        faces.push({ vi:[vi[0],vi[i],vi[i+1]], ti:[ti[0],ti[i],ti[i+1]], mat:curMat });
+      }
+    }
+  }
+  return { verts, uvs, normals, faces, mats };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COLOR HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
+function sampleColor(face, u, v, w) {
+  const mat = objData.mats[face.mat];
+  if (!mat) return [0.7, 0.7, 0.7];
+
+  // Texture takes priority
+  if (mat.map_Kd && textures[mat.map_Kd] && face.ti[0] >= 0 && face.ti[1] >= 0 && face.ti[2] >= 0) {
+    const img = textures[mat.map_Kd];
+    const [t0,t1,t2] = face.ti.map(i => objData.uvs[i] || [0,0]);
+    let fu = w*t0[0] + u*t1[0] + v*t2[0];
+    let fv = w*t0[1] + u*t1[1] + v*t2[1];
+    fu = ((fu % 1) + 1) % 1;
+    fv = ((fv % 1) + 1) % 1;
+    const px = Math.floor(fu * img.width)  % img.width;
+    const py = Math.floor((1-fv) * img.height) % img.height;
+    const i4 = (py * img.width + px) * 4;
+    return [img.data[i4]/255, img.data[i4+1]/255, img.data[i4+2]/255];
+  }
+
+  // Emissive/diffuse mix
+  const [kr,kg,kb] = mat.Kd;
+  const [er,eg,eb] = mat.Ke;
+  // Boost by emissive slightly
+  return [
+    Math.min(1, kr + er * 0.3),
+    Math.min(1, kg + eg * 0.3),
+    Math.min(1, kb + eb * 0.3),
+  ];
+}
+
+function rgbToSeHsv(r, g, b) {
+  // Apply brightness and saturation adjustments
+  const brightOff = parseInt(document.getElementById('sBright').value) / 100;
+  const satBoost  = parseInt(document.getElementById('sSat').value) / 100;
+
+  r = Math.max(0, Math.min(1, r + brightOff * 0.5));
+  g = Math.max(0, Math.min(1, g + brightOff * 0.5));
+  b = Math.max(0, Math.min(1, b + brightOff * 0.5));
+
+  const mx = Math.max(r,g,b), mn = Math.min(r,g,b), d = mx - mn;
+  let h = 0;
+  if (d > 1e-6) {
+    if      (mx===r) h = (((g-b)/d) % 6) / 6;
+    else if (mx===g) h = ((b-r)/d + 2) / 6;
+    else             h = ((r-g)/d + 4) / 6;
+    if (h < 0) h += 1;
+  }
+  // SE ColorMaskHSV: x = H (0..1), y = S - 0.8, z = V - 0.55
+  // (gleiche, aus einer echten SE-Vorlage abgeleitete Formel wie in PixelArt2SBC / mctex2se)
+  let s_std = mx < 1e-6 ? 0 : d/mx;
+  s_std = Math.max(0, Math.min(1, s_std + satBoost * 0.5));
+  return [h, s_std - 0.8, mx - 0.55];
+}
+
+function avgColor(c) {
+  const cnt = c[3] || 1;
+  return [c[0]/cnt, c[1]/cnt, c[2]/cnt];
+}
+
+function quantize(r, g, b, buckets) {
+  const qr = Math.round(r*buckets)/buckets;
+  const qg = Math.round(g*buckets)/buckets;
+  const qb = Math.round(b*buckets)/buckets;
+  return `${qr.toFixed(3)},${qg.toFixed(3)},${qb.toFixed(3)}`;
+}
+
+function hsvToRgb01(h, s, v) {
+  // Umkehrung von rgbToSeHsv (S + 0.8, V + 0.55)
+  const ss = Math.max(0, Math.min(1, s + 0.8));
+  const vv = Math.max(0.05, Math.min(1, v + 0.55));
+  if (ss < 0.01) return [vv,vv,vv];
+  const i=Math.floor(h*6), f=h*6-i;
+  const p=vv*(1-ss), q=vv*(1-f*ss), t=vv*(1-(1-f)*ss);
+  switch(i%6){case 0:return[vv,t,p];case 1:return[q,vv,p];case 2:return[p,vv,t];
+    case 3:return[p,q,vv];case 4:return[t,p,vv];default:return[vv,p,q];}
+}
+
+function hsvToCss(h, s, v) {
+  const [r,g,b] = hsvToRgb01(h,s,v);
+  return `rgb(${Math.round(r*255)},${Math.round(g*255)},${Math.round(b*255)})`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ESTIMATE
+// ═══════════════════════════════════════════════════════════════════════════
+// Z-up (Blender) → Y-up (SE) als echte Drehung um X (kein Spiegeln): (x,y,z) → (x,z,-y)
+function orientVerts(verts, zUp) {
+  return zUp ? verts.map(v => [v[0], v[2], -v[1]]) : verts;
+}
+function boundsOf(verts) {
+  let minX=Infinity,minY=Infinity,minZ=Infinity,maxX=-Infinity,maxY=-Infinity,maxZ=-Infinity;
+  for (const [x,y,z] of verts) {
+    if(x<minX)minX=x; if(y<minY)minY=y; if(z<minZ)minZ=z;
+    if(x>maxX)maxX=x; if(y>maxY)maxY=y; if(z>maxZ)maxZ=z;
+  }
+  return { minX, minY, minZ, maxX, maxY, maxZ };
+}
+
+function updateEstimate() {
+  if (!objData) return;
+  const res = parseInt(document.getElementById('sRes').value);
+  const grid = document.getElementById('sGrid').value;
+  const blockM = grid === 'Large' ? 2.5 : 0.5;
+
+  const { minX, minY, minZ, maxX, maxY, maxZ } =
+    boundsOf(orientVerts(objData.verts, document.getElementById('sYup').checked));
+  const span = Math.max(maxX-minX, maxY-minY, maxZ-minZ) || 1;
+  const scale = res / span;
+  const dx = Math.ceil((maxX-minX)*scale);
+  const dy = Math.ceil((maxY-minY)*scale);
+  const dz = Math.ceil((maxZ-minZ)*scale);
+  const realX = (dx * blockM).toFixed(1);
+  const realY = (dy * blockM).toFixed(1);
+  const realZ = (dz * blockM).toFixed(1);
+
+  document.getElementById('estInfo').innerHTML =
+    `Größe: <span style="color:var(--cyan)">${dx}×${dy}×${dz}</span> Blöcke<br>` +
+    `In SE: <span style="color:var(--orange)">${realX}×${realY}×${realZ} m</span><br>` +
+    `Schätzung: ~<span style="color:var(--green)">${(dx*dy*dz*0.3)|0}</span> Blöcke (Surface)`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VOXELIZER
+// ═══════════════════════════════════════════════════════════════════════════
+function doVoxelize() {
+  if (!objData) { st('Erst OBJ laden!', 'err'); return; }
+
+  st('Voxelisiere — bitte warten...', 'busy');
+  document.getElementById('btnGo').disabled = true;
+
+  // Use setTimeout to let UI update first
+  setTimeout(() => {
+    try {
+      const res = parseInt(document.getElementById('sRes').value);
+      const solid = document.getElementById('sSolid').checked;
+      const zUp = document.getElementById('sYup').checked;
+      const mirrorZ = document.getElementById('sMirrorZ').checked;
+      const buckets = parseInt(document.getElementById('sBuckets').value);
+      usedBuckets = buckets;
+
+      const { faces } = objData;
+      const verts = orientVerts(objData.verts, zUp);
+
+      // Bounding box (nach der Achsendrehung)
+      const { minX, minY, minZ, maxX, maxY, maxZ } = boundsOf(verts);
+      const span = Math.max(maxX-minX,maxY-minY,maxZ-minZ);
+      if (!(span > 1e-9)) throw new Error('Modell hat keine Ausdehnung');
+      const scale = res / span;
+      const dimZ = (maxZ-minZ)*scale;
+
+      function xf(v) {
+        const x = (v[0]-minX)*scale;
+        const y = (v[1]-minY)*scale;
+        let z = (v[2]-minZ)*scale;
+        if (mirrorZ) z = dimZ - z;
+        return [x, y, z];
+      }
+
+      // Voxel accumulator
+      voxelMap = new Map(); // "x,y,z" → [r_sum, g_sum, b_sum, count]
+
+      for (const face of faces) {
+        const v0=xf(verts[face.vi[0]]);
+        const v1=xf(verts[face.vi[1]]);
+        const v2=xf(verts[face.vi[2]]);
+
+        // Adaptive steps: cover each voxel at least once
+        const e01=dist3(v0,v1), e12=dist3(v1,v2), e20=dist3(v2,v0);
+        const steps = Math.max(4, Math.ceil(Math.max(e01,e12,e20) * 2.5));
+
+        for (let i=0; i<=steps; i++) {
+          const u = i/steps;
+          for (let j=0; j<=steps-i; j++) {
+            const v = j/steps;
+            const w = 1-u-v;
+            if (w < -1e-6) continue;
+
+            const px = w*v0[0]+u*v1[0]+v*v2[0];
+            const py = w*v0[1]+u*v1[1]+v*v2[1];
+            const pz = w*v0[2]+u*v1[2]+v*v2[2];
+
+            // Punkte exakt auf der Maximalkante (= res) in das letzte Voxel legen, damit max. res Voxel je Achse entstehen
+            const vx=Math.min(Math.floor(px), res-1), vy=Math.min(Math.floor(py), res-1), vz=Math.min(Math.floor(pz), res-1);
+            if (vx<0||vy<0||vz<0) continue;
+
+            const [cr,cg,cb] = sampleColor(face, u, v, w);
+            const key = `${vx},${vy},${vz}`;
+            if (voxelMap.has(key)) {
+              const c=voxelMap.get(key);
+              c[0]+=cr; c[1]+=cg; c[2]+=cb; c[3]++;
+            } else {
+              voxelMap.set(key,[cr,cg,cb,1]);
+            }
+          }
+        }
+      }
+
+      // Solid fill
+      if (solid) {
+        const xzGroups = new Map();
+        for (const key of voxelMap.keys()) {
+          const [x,,z] = key.split(',').map(Number);
+          const xzk = `${x},${z}`;
+          if (!xzGroups.has(xzk)) xzGroups.set(xzk, { minY:Infinity, maxY:-Infinity, key:null });
+          const e = xzGroups.get(xzk);
+          const y = parseInt(key.split(',')[1]);
+          if (y < e.minY) { e.minY=y; e.key=key; }
+          if (y > e.maxY) e.maxY=y;
+        }
+        for (const [xzk, { minY, maxY, key }] of xzGroups) {
+          const [x,,z] = xzk.split(',').map(Number);
+          const refColor = voxelMap.get(key);
+          for (let y=minY; y<=maxY; y++) {
+            const k = `${x},${y},${z}`;
+            if (!voxelMap.has(k)) voxelMap.set(k, [...refColor]);
+          }
+        }
+      }
+
+      if (!voxelMap.size) throw new Error('Keine Voxel erzeugt — Auflösung zu niedrig?');
+
+      // Build quantMap: qKey → SE HSV
+      quantMap = new Map();
+      for (const c of voxelMap.values()) {
+        const [r,g,b] = avgColor(c);
+        const qk = quantize(r,g,b,buckets);
+        if (!quantMap.has(qk)) quantMap.set(qk, rgbToSeHsv(r,g,b));
+      }
+
+      // Grenzen der Voxel (Schleife statt Math.max(...array): das stürzt bei >~100k Voxeln mit RangeError ab)
+      const bmin = [Infinity, Infinity, Infinity], bmax = [-Infinity, -Infinity, -Infinity];
+      for (const key of voxelMap.keys()) {
+        const p = key.split(',');
+        for (let a = 0; a < 3; a++) {
+          const n = +p[a];
+          if (n < bmin[a]) bmin[a] = n;
+          if (n > bmax[a]) bmax[a] = n;
+        }
+      }
+      voxBounds = { min: bmin, max: bmax };
+
+      // Update sliders max
+      const maxVoxelY = bmax[1];
+      document.getElementById('vLayerMin').value = 0;
+      document.getElementById('vLayerMin').max = maxVoxelY;
+      document.getElementById('vLayerMax').max = maxVoxelY;
+      document.getElementById('vLayerMax').value = maxVoxelY;
+      document.getElementById('vLMaxV').textContent = maxVoxelY;
+      document.getElementById('vLMinV').textContent = '0';
+
+      // Build blueprint XML
+      // Name wird zu Ordner-/Dateiname und XML-Wert → nur sichere Zeichen
+      const bpName = document.getElementById('sBpName').value.replace(/[^A-Za-z0-9_\- ]/g, '_').trim() || 'OBJ_Voxel';
+      const gridSize = document.getElementById('sGrid').value;
+      const blockType = gridSize + document.getElementById('sBlock').value;   // z.B. LargeBlockArmorBlock
+      const eid = String(Date.now()) + String(Math.floor(Math.random()*900)+100);
+      const blockParts = [];   // Array + join statt String-Konkatenation (schneller bei vielen Blöcken)
+
+      for (const [key, c] of voxelMap) {
+        const [x,y,z] = key.split(',').map(Number);
+        const [r,g,b] = avgColor(c);
+        const qk = quantize(r,g,b,buckets);
+        const [h,s,v] = quantMap.get(qk) || [0,-0.8,-0.55];
+        blockParts.push(`      <MyObjectBuilder_CubeBlock xsi:type="MyObjectBuilder_CubeBlock">
+        <SubtypeName>${blockType}</SubtypeName>
+        <Min x="${x}" y="${y}" z="${z}"/>
+        <BlockOrientation Forward="Forward" Up="Up"/>
+        <ColorMaskHSV x="${h.toFixed(6)}" y="${s.toFixed(6)}" z="${v.toFixed(6)}"/>
+      </MyObjectBuilder_CubeBlock>\n`);
+      }
+      const blockXml = blockParts.join('');
+
+      lastXml = `<?xml version="1.0" encoding="utf-8"?>
+<Definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <ShipBlueprints>
+    <ShipBlueprint xsi:type="MyObjectBuilder_ShipBlueprintDefinition">
+      <Id Type="MyObjectBuilder_ShipBlueprintDefinition" Subtype="${bpName}"/>
+      <DisplayName>${bpName}</DisplayName>
+      <CubeGrids>
+        <CubeGrid>
+          <SubtypeName/>
+          <EntityId>${eid}</EntityId>
+          <PersistentFlags>CastShadows InScene</PersistentFlags>
+          <PositionAndOrientation>
+            <Position x="0" y="0" z="0"/>
+            <Forward x="0" y="0" z="-1"/>
+            <Up x="0" y="1" z="0"/>
+            <Orientation><X>0</X><Y>0</Y><Z>0</Z><W>1</W></Orientation>
+          </PositionAndOrientation>
+          <GridSizeEnum>${gridSize}</GridSizeEnum>
+          <CubeBlocks>
+${blockXml}      </CubeBlocks>
+          <DisplayName>${bpName}</DisplayName>
+          <DestructibleBlocks>true</DestructibleBlocks>
+          <IsRespawnGrid>false</IsRespawnGrid>
+        </CubeGrid>
+      </CubeGrids>
+    </ShipBlueprint>
+  </ShipBlueprints>
+</Definitions>`;
+
+      // Update UI
+      document.getElementById('resCount').textContent = `✓ ${voxelMap.size} Blöcke | ${quantMap.size} Farben`;
+      document.getElementById('resMeta').textContent = `${(lastXml.length/1024).toFixed(1)} KB | ${blockType}`;
+      document.getElementById('resHint').textContent = `ZIP nach %AppData%\\SpaceEngineers\\Blueprints\\local\\ entpacken → ${bpName}\\bp.sbc`
+        + (voxelMap.size > 50000 ? ' — ⚠ sehr viele Blöcke, Einfügen im Spiel kann dauern' : '');
+      document.getElementById('resBox').style.display = 'block';
+      document.getElementById('statsOverlay').style.display = 'block';
+      document.getElementById('statBlocks').textContent = `${voxelMap.size} Blöcke`;
+      document.getElementById('statColors').textContent = `${quantMap.size} Farben`;
+      const bm = gridSize === 'Large' ? 2.5 : 0.5;
+      const dX = (bmax[0] - bmin[0] + 1) * bm;
+      const dY = (bmax[1] - bmin[1] + 1) * bm;
+      const dZ = (bmax[2] - bmin[2] + 1) * bm;
+      document.getElementById('statSize').textContent = `${dX.toFixed(1)}×${dY.toFixed(1)}×${dZ.toFixed(1)} m`;
+
+      // Palette
+      const palEl = document.getElementById('palette');
+      palEl.innerHTML = '';
+      document.getElementById('palCount').textContent = quantMap.size;
+      for (const [,hsv] of quantMap) {
+        const sw = document.createElement('div');
+        sw.className = 'pswatch';
+        const css = hsvToCss(...hsv);
+        sw.style.background = css;
+        sw.style.boxShadow = `0 0 3px ${css}70`;
+        sw.title = `HSV(${hsv[0].toFixed(2)},${hsv[1].toFixed(2)},${hsv[2].toFixed(2)})`;
+        palEl.appendChild(sw);
+      }
+
+      // 3D Preview
+      buildPreview(true);
+      st(`✓ ${voxelMap.size} Blöcke, ${quantMap.size} Farben — bereit zum Herunterladen`, 'ok');
+
+    } catch(e) {
+      st('✗ Fehler: ' + e.message, 'err');
+      console.error(e);
+    }
+    document.getElementById('btnGo').disabled = false;
+  }, 20);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DOWNLOAD
+// ═══════════════════════════════════════════════════════════════════════════
+function saveBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+async function doDownload() {
+  if (!lastXml) return;
+  const name = document.getElementById('sBpName').value.replace(/[^A-Za-z0-9_\- ]/g, '_').trim() || 'OBJ_Voxel';
+  // Als ZIP mit Ordner <Name>/bp.sbc, wie SE es im Blueprint-Verzeichnis erwartet
+  if (typeof JSZip !== 'undefined') {
+    try {
+      const zip = new JSZip();
+      zip.folder(name).file('bp.sbc', lastXml);
+      saveBlob(await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' }), `${name}.zip`);
+      return;
+    } catch (e) { console.error(e); }
+  }
+  saveBlob(new Blob([lastXml], { type: 'text/xml;charset=utf-8' }), 'bp.sbc');
+  st('JSZip nicht verfügbar — bp.sbc direkt gespeichert, in Ordner ' + name + ' legen', 'warn');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// UTILITIES
+// ═══════════════════════════════════════════════════════════════════════════
+function dist3(a, b) {
+  return Math.sqrt((a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2);
+}
+function fmt(bytes) {
+  return bytes > 1024*1024 ? (bytes/1024/1024).toFixed(1)+' MB' : (bytes/1024).toFixed(1)+' KB';
+}
+function st(msg, type) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = type || 'info';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════════════════
+window.addEventListener('load', () => {
+  try { initThree(); }
+  catch (e) { st('3D-Ansicht nicht verfügbar: ' + e.message, 'warn'); console.error(e); }
+  setupDrop();
+  document.getElementById('sRes').addEventListener('input', updateEstimate);
+  document.getElementById('sGrid').addEventListener('change', updateEstimate);
+  document.getElementById('sYup').addEventListener('change', updateEstimate);
+});
+</script>
+</body>
+</html>
