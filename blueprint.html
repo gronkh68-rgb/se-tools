@@ -199,7 +199,10 @@ const rot90 = (v,ax)=> ax==="y"?[v[2],v[1],-v[0]] : ax==="x"?[v[0],-v[2],v[1]] :
 
 let DEFS = {};
 let occCache=null;
-fetch("blockdefs.json").then(r=>r.json()).then(d=>{DEFS=d;buildPalette();if(doc){loadModel();rebuild();}}).catch(()=>{$("defWarn").style.display="block";});
+let MOD_KEYS=[];
+Promise.all([fetch("blockdefs.json").then(r=>r.json()),fetch("blockdefs_50cm.json").then(r=>r.json()).catch(()=>({}))])
+  .then(([d,m])=>{DEFS=Object.assign({},m,d);MOD_KEYS=Object.keys(m);buildPalette();if(doc){loadModel();rebuild();}})
+  .catch(()=>{$("defWarn").style.display="block";});
 
 // ───────── Modell ─────────
 let doc=null, grids=[], selection=new Set(), tool="select";
@@ -324,11 +327,11 @@ const GEO={
 };
 function shapeOf(b){
   const d=getDef(b.sub);
-  if (d[1]!==1||d[2]!==1||d[3]!==1||d[4]!=="CubeBlock") return "box";
-  if (/CornerInv/i.test(b.sub)) return "invcorner";
-  if (/Corner/i.test(b.sub)) return "corner";
-  if (/Slope/i.test(b.sub)) return "slope";
-  return "box";
+  if (d[1]!==d[2]||d[2]!==d[3]||d[4]!=="CubeBlock") return "box";
+  const n=b.sub.replace(/_?50cm$/,"");
+  const m=/^(?:Large|Small)(?:Heavy)?(?:BlockArmor|RoundArmor_|BlockArmorRound)(Slope|CornerInv|Corner)$/.exec(n);
+  if (!m) return "box";
+  return m[1]==="Slope"?"slope":m[1]==="Corner"?"corner":"invcorner";
 }
 
 // ───────── Three.js ─────────
@@ -537,6 +540,7 @@ function thumbBlob(){
 let CATS=[], palCat="all", ATLAS=null;
 fetch("icons/cubes.json").then(r=>r.json()).then(a=>{ATLAS=a;buildPalette();}).catch(()=>{});
 function iconEl(sub,big){
+  if (ATLAS&&!(sub in ATLAS.i)) { const bs=sub.replace(/_?50cm$/,""); if (bs in ATLAS.i) sub=bs; }
   if (!ATLAS||!(sub in ATLAS.i)) return null;
   const i=ATLAS.i[sub], c=ATLAS.c, r=ATLAS.r, e=document.createElement("i");
   e.className="ico";
@@ -552,13 +556,13 @@ function buildPalette(){
     palSub=DEFS[alt]?alt:(palLarge()?"LargeBlockArmorBlock":"SmallBlockArmorBlock");
   }
   const cats=$("cats"); cats.innerHTML="";
-  const tabs=[{id:"all",name:"Alle"},...CATS];
+  const tabs=[{id:"all",name:"Alle"},...CATS,...(MOD_KEYS.length?[{id:"mod50",name:"50cm Mod",items:MOD_KEYS}]:[])];
   for (const c of tabs) {
     const b=document.createElement("button"); b.textContent=c.name; b.className=c.id===palCat?"on":"";
     b.onclick=()=>{ palCat=c.id; buildPalette(); }; cats.appendChild(b);
   }
   const q=$("search").value.trim().toLowerCase(), large=palLarge();
-  const cat=CATS.find(c=>c.id===palCat);
+  const cat=tabs.find(c=>c.id===palCat&&c.items);
   let keys=cat?cat.items:Object.keys(DEFS).sort((a,b)=>(/Armor/.test(a)?0:1)-(/Armor/.test(b)?0:1)||a.localeCompare(b));
   keys=keys.filter(k=>DEFS[k]&&DEFS[k][0]===(large?1:0)&&(!q||k.toLowerCase().includes(q)||DEFS[k][5].toLowerCase().includes(q)));
   const pal=$("pal"); pal.innerHTML=""; pal.scrollTop=0;
