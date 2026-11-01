@@ -43,7 +43,7 @@ label{display:block;color:var(--dim);font-size:10px;margin:6px 0 3px;text-transf
 #cats button.on{background:var(--cy) !important;color:#000 !important}
 #pal{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;height:230px;overflow-y:auto;padding:4px;background:#070910;border:1px solid var(--line);align-content:start}
 .pt{position:relative;aspect-ratio:1;background:var(--panel2);border:1px solid var(--line);cursor:pointer;display:grid;place-items:center;padding:2px}
-.pt img{width:100%;height:100%;object-fit:contain;display:block}
+.ico{display:block;width:100%;height:100%;background:url(icons/cubes.webp) no-repeat;image-rendering:auto}
 .pt:hover{border-color:var(--cy);box-shadow:0 0 8px rgba(252,238,9,.4)}
 .pt.on{border-color:var(--gr);box-shadow:0 0 10px rgba(45,255,179,.6);background:rgba(45,255,179,.08)}
 .pt span{font-size:9px;color:var(--dim);text-align:center;line-height:1.1;padding:2px;overflow:hidden}
@@ -51,9 +51,10 @@ label{display:block;color:var(--dim);font-size:10px;margin:6px 0 3px;text-transf
 #palInfo b{font-size:12px;color:var(--tx)}
 .stat{display:flex;justify-content:space-between;font-size:11px;padding:2px 0;border-bottom:1px dotted var(--line)}
 .stat b{color:var(--gr);font-weight:normal}
-#bpico{width:48px;height:48px;object-fit:contain;flex:none;background:var(--panel2);border:1px solid var(--line);padding:2px}
+#bpico{width:52px;height:52px;flex:none;background:var(--panel2);border:1px solid var(--line);padding:2px}
 @media(max-width:900px){body{overflow:auto}#app{grid-template-columns:1fr;grid-template-rows:52px 60vh auto;height:auto}#viewport{order:-1;grid-row:2;min-height:60vh}.col{border:none}}
 </style>
+<link rel="preload" as="image" href="icons/cubes.webp">
 <link rel="stylesheet" href="deukro.css">
 <script src="deukro.js" defer></script>
 </head>
@@ -118,7 +119,7 @@ label{display:block;color:var(--dim);font-size:10px;margin:6px 0 3px;text-transf
     <div id="cats"></div>
     <div id="pal"></div>
     <div id="palInfo">
-      <img id="bpico" alt="">
+      <div id="bpico"></div>
       <div><b id="palName">–</b><div class="hint" id="palMeta" style="margin:0"></div></div>
     </div>
     <div class="row" style="margin-top:6px">
@@ -517,7 +518,16 @@ function thumbBlob(){
 }
 
 // ───────── Palette (G-Menü) ─────────
-let CATS=[], palCat="all";
+let CATS=[], palCat="all", ATLAS=null;
+fetch("icons/cubes.json").then(r=>r.json()).then(a=>{ATLAS=a;buildPalette();}).catch(()=>{});
+function iconEl(sub,big){
+  if (!ATLAS||!(sub in ATLAS.i)) return null;
+  const i=ATLAS.i[sub], c=ATLAS.c, r=ATLAS.r, e=document.createElement("i");
+  e.className="ico";
+  e.style.backgroundSize=(c*100)+"% "+(r*100)+"%";
+  e.style.backgroundPosition=(c>1?(i%c)/(c-1)*100:0)+"% "+(r>1?Math.floor(i/c)/(r-1)*100:0)+"%";
+  return e;
+}
 fetch("blockcats.json").then(r=>r.json()).then(c=>{CATS=c;buildPalette();}).catch(()=>{});
 function palLarge(){ return activeGrid()?activeGrid().large:($("newSize").value==="Large"); }
 function buildPalette(){
@@ -538,9 +548,8 @@ function buildPalette(){
   const pal=$("pal"); pal.innerHTML=""; pal.scrollTop=0;
   for (const k of keys.slice(0,400)) {
     const t=document.createElement("div"); t.className="pt"+(k===palSub?" on":""); t.title=DEFS[k][5]; t.dataset.sub=k;
-    const im=new Image(); im.loading="lazy"; im.alt=""; im.src="icons/cubes/"+k+".png";
-    im.onerror=()=>{ im.remove(); const sp=document.createElement("span"); sp.textContent=DEFS[k][5]; t.appendChild(sp); };
-    t.appendChild(im); t.onclick=()=>{ palSub=k; pal.querySelectorAll(".pt.on").forEach(e=>e.classList.remove("on")); t.classList.add("on"); palChanged(); };
+    const ic=iconEl(k,false); if (ic) t.appendChild(ic); else { const sp=document.createElement("span"); sp.textContent=DEFS[k][5]; t.appendChild(sp); }
+    t.onclick=()=>{ palSub=k; pal.querySelectorAll(".pt.on").forEach(e=>e.classList.remove("on")); t.classList.add("on"); palChanged(); };
     pal.appendChild(t);
   }
   if (!keys.length) pal.innerHTML='<div class="hint" style="grid-column:1/-1">Keine Blöcke gefunden.</div>';
@@ -550,7 +559,7 @@ function palChanged(){
   const d=DEFS[palSub], im=$("bpico");
   $("palName").textContent=d?d[5]:palSub;
   $("palMeta").textContent=d?`${d[1]}×${d[2]}×${d[3]} · ${d[0]?"Large":"Small"} · ${palSub}`:palSub;
-  im.src="icons/cubes/"+palSub+".png"; im.style.visibility="visible"; im.onerror=()=>{ im.style.visibility="hidden"; };
+  const big=iconEl(palSub,true); im.innerHTML=""; if (big) im.appendChild(big);
   updateGhostShape();
 }
 $("search").addEventListener("input",buildPalette);
