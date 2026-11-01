@@ -316,9 +316,11 @@ function polyhedron(pts){
 const H=0.5;
 const GEO={
   box:new THREE.BoxGeometry(1,1,1),
-  slope:polyhedron([[-H,-H,-H],[H,-H,-H],[-H,-H,H],[H,-H,H],[-H,H,H],[H,H,H]]),
-  corner:polyhedron([[-H,-H,H],[H,-H,H],[-H,H,H],[-H,-H,-H]]),
-  invcorner:polyhedron([[H,-H,H],[-H,H,H],[-H,-H,-H],[H,-H,-H],[-H,H,-H],[H,H,-H],[H,H,H]])
+  // Formen nach den MountPoints der Spieldefinitionen: Schräge = Front voll + Boden voll, fällt nach hinten ab;
+  // Ecke = Dreiecke an Front/Rechts/Unten (Spitze bei +X,-Y,-Z); Innenecke = Würfel ohne diese Ecke.
+  slope:polyhedron([[-H,-H,-H],[H,-H,-H],[-H,-H,H],[H,-H,H],[-H,H,-H],[H,H,-H]]),
+  corner:polyhedron([[H,-H,-H],[-H,-H,-H],[H,H,-H],[H,-H,H]]),
+  invcorner:polyhedron([[-H,-H,-H],[-H,-H,H],[H,-H,H],[-H,H,-H],[-H,H,H],[H,H,-H],[H,H,H]])
 };
 function shapeOf(b){
   const d=getDef(b.sub);
