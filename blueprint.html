@@ -73,6 +73,7 @@ label{display:block;color:var(--dim);font-size:10px;margin:6px 0 3px;text-transf
       <button id="bNew" class="g">Neu</button>
     </div>
     <input type="file" id="fileIn" accept=".sbc,.zip,.xml">
+    <div class="hint" id="pathHint" style="display:none">Blueprint-Ordner in die Zwischenablage kopiert: <code>%AppData%\SpaceEngineers\Blueprints\local</code><br>Im Dialog in die Adressleiste oder das Dateinamenfeld einfügen (Strg+V) und Enter. Chrome/Edge merken sich danach den zuletzt benutzten Ordner.</div>
     <div class="row" style="margin-top:6px">
       <div><label>Neue Gridgröße</label><select id="newSize"><option value="Large">Large</option><option value="Small">Small</option></select></div>
       <div><label>Blueprint-Name</label><input type="text" id="bpName" value="MyBlueprint"></div>
@@ -736,7 +737,20 @@ function updateUI(){
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
 // Datei-Events
-$("bOpen").onclick=()=>$("fileIn").click();
+const BP_PATH="%AppData%\\SpaceEngineers\\Blueprints\\local";
+async function pickFile(){
+  try { navigator.clipboard.writeText(BP_PATH).catch(()=>{}); } catch(e){}
+  $("pathHint").style.display="block";
+  if (window.showOpenFilePicker) {
+    try {
+      const [h]=await showOpenFilePicker({id:"se-blueprints",startIn:"documents",
+        types:[{description:"Blueprint (.sbc / .zip)",accept:{"text/xml":[".sbc",".xml"],"application/zip":[".zip"]}}]});
+      openFile(await h.getFile()); return;
+    } catch(e){ if (e.name==="AbortError") return; }
+  }
+  $("fileIn").click();
+}
+$("bOpen").onclick=pickFile;
 $("fileIn").onchange=e=>{ if (e.target.files[0]) openFile(e.target.files[0]); e.target.value=""; };
 $("bNew").onclick=()=>{ if (doc&&!confirm("Aktuellen Blueprint verwerfen?")) return; setDoc(TEMPLATE(cleanName(),$("newSize").value),cleanName()); setTool("build"); };
 $("newSize").onchange=()=>{ if (!doc) buildPalette(); };
