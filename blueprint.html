@@ -38,10 +38,20 @@ label{display:block;color:var(--dim);font-size:10px;margin:6px 0 3px;text-transf
 #overlay{position:absolute;left:12px;bottom:10px;color:var(--dim);font-size:10px;line-height:1.6;pointer-events:none}
 #drop{position:absolute;inset:0;display:none;align-items:center;justify-content:center;border:2px dashed var(--cy);background:rgba(5,6,11,.8);font-size:16px;color:var(--cy);z-index:5;pointer-events:none}
 #empty{position:absolute;inset:0;display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center;color:var(--dim);pointer-events:none;text-align:center;line-height:1.8}
-#list{height:150px;padding:2px}
+#cats{display:flex;flex-wrap:wrap;gap:3px;margin:7px 0}
+#cats button{padding:3px 7px;font-size:10px}
+#cats button.on{background:var(--cy) !important;color:#000 !important}
+#pal{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;height:230px;overflow-y:auto;padding:4px;background:#070910;border:1px solid var(--line);align-content:start}
+.pt{position:relative;aspect-ratio:1;background:var(--panel2);border:1px solid var(--line);cursor:pointer;display:grid;place-items:center;padding:2px}
+.pt img{width:100%;height:100%;object-fit:contain;display:block}
+.pt:hover{border-color:var(--cy);box-shadow:0 0 8px rgba(252,238,9,.4)}
+.pt.on{border-color:var(--gr);box-shadow:0 0 10px rgba(45,255,179,.6);background:rgba(45,255,179,.08)}
+.pt span{font-size:9px;color:var(--dim);text-align:center;line-height:1.1;padding:2px;overflow:hidden}
+#palInfo{display:flex;gap:8px;align-items:center;margin-top:7px;min-height:52px}
+#palInfo b{font-size:12px;color:var(--tx)}
 .stat{display:flex;justify-content:space-between;font-size:11px;padding:2px 0;border-bottom:1px dotted var(--line)}
 .stat b{color:var(--gr);font-weight:normal}
-#bpico{width:48px;height:48px;object-fit:contain;display:none}
+#bpico{width:48px;height:48px;object-fit:contain;flex:none;background:var(--panel2);border:1px solid var(--line);padding:2px}
 @media(max-width:900px){body{overflow:auto}#app{grid-template-columns:1fr;grid-template-rows:52px 60vh auto;height:auto}#viewport{order:-1;grid-row:2;min-height:60vh}.col{border:none}}
 </style>
 <link rel="stylesheet" href="deukro.css">
@@ -103,13 +113,15 @@ label{display:block;color:var(--dim);font-size:10px;margin:6px 0 3px;text-transf
   </div>
 
   <div class="card g">
-    <h3>Bau-Palette</h3>
-    <div class="row">
-      <input type="text" id="search" placeholder="Block suchen (z.B. armor, slope, thruster)">
-    </div>
-    <select id="list" size="8"></select>
-    <div class="row" style="margin-top:6px;align-items:center">
+    <h3>Bau-Palette (G-Menü)</h3>
+    <input type="text" id="search" placeholder="Block suchen (z.B. armor, slope, thruster)">
+    <div id="cats"></div>
+    <div id="pal"></div>
+    <div id="palInfo">
       <img id="bpico" alt="">
+      <div><b id="palName">–</b><div class="hint" id="palMeta" style="margin:0"></div></div>
+    </div>
+    <div class="row" style="margin-top:6px">
       <button id="bRotY" class="sm">⟳ Y (R)</button>
       <button id="bRotX" class="sm">⟳ X (T)</button>
       <button id="bRotZ" class="sm">⟳ Z (Z)</button>
@@ -177,8 +189,6 @@ label{display:block;color:var(--dim);font-size:10px;margin:6px 0 3px;text-transf
 const $ = id => document.getElementById(id);
 const XSI = "http://www.w3.org/2001/XMLSchema-instance";
 const SKINS = ["Clean_Armor","Rusty_Armor","Battered_Armor","CowMooFlage_Armor","RustNonColorable_Armor","Weldless","Corrugated","DigitalCamouflage_Armor","CarbonFibre_Armor","Wood_Armor","Mossy_Armor","SciFi_Armor","Neon_Colorable_Surface","Neon_Colorable_Lights","Frozen_Armor","Golden_Armor","Silver_Armor","Glamour_Armor","Disco_Armor","Heavy_Rust_Armor","Dust_Armor","Concrete_Armor","Retrofuture_Armor","Hazard_Armor","WoodlandCamo_Armor","Plastic","Wartorn"];
-const PAL_ICONS = {LargeBlockArmorBlock:"ArmorCenter",LargeBlockArmorSlope:"ArmorSide",LargeBlockArmorCorner:"ArmorCorner",
-  LargeHeavyBlockArmorBlock:"HeavyArmorBlock",LargeHeavyBlockArmorSlope:"HeavyArmorSlope",LargeHeavyBlockArmorCorner:"HeavyArmorCorner",LargeHeavyBlockArmorCornerInv:"HeavyArmorInvCorner"};
 const VEC = {Forward:[0,0,-1],Backward:[0,0,1],Left:[-1,0,0],Right:[1,0,0],Up:[0,1,0],Down:[0,-1,0]};
 const vecName = v => { for (const k in VEC) if (VEC[k][0]===v[0]&&VEC[k][1]===v[1]&&VEC[k][2]===v[2]) return k; return "Forward"; };
 const cross = (a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
@@ -506,23 +516,43 @@ function thumbBlob(){
   });
 }
 
-// ───────── Palette ─────────
+// ───────── Palette (G-Menü) ─────────
+let CATS=[], palCat="all";
+fetch("blockcats.json").then(r=>r.json()).then(c=>{CATS=c;buildPalette();}).catch(()=>{});
+function palLarge(){ return activeGrid()?activeGrid().large:($("newSize").value==="Large"); }
 function buildPalette(){
-  const sel=$("list"), q=$("search").value.trim().toLowerCase(), large=activeGrid()?activeGrid().large:($("newSize").value==="Large");
-  sel.innerHTML="";
-  const keys=Object.keys(DEFS).filter(k=>DEFS[k][0]===(large?1:0)&&(!q||k.toLowerCase().includes(q)||DEFS[k][5].toLowerCase().includes(q)));
-  keys.sort((a,b)=>{ const pa=/Armor/.test(a)?0:1, pb=/Armor/.test(b)?0:1; return pa-pb||a.localeCompare(b); });
-  for (const k of keys.slice(0,300)) { const o=document.createElement("option"); o.value=k; o.textContent=DEFS[k][5]+"  ["+DEFS[k][1]+"×"+DEFS[k][2]+"×"+DEFS[k][3]+"]"; sel.appendChild(o); }
-  if (!keys.includes(palSub)) palSub=keys[0]||palSub;
-  sel.value=palSub; palChanged(false);
+  if (DEFS[palSub] && DEFS[palSub][0]!==(palLarge()?1:0)) {
+    const alt=palLarge()?palSub.replace(/^Small/,"Large"):palSub.replace(/^Large/,"Small");
+    palSub=DEFS[alt]?alt:(palLarge()?"LargeBlockArmorBlock":"SmallBlockArmorBlock");
+  }
+  const cats=$("cats"); cats.innerHTML="";
+  const tabs=[{id:"all",name:"Alle"},...CATS];
+  for (const c of tabs) {
+    const b=document.createElement("button"); b.textContent=c.name; b.className=c.id===palCat?"on":"";
+    b.onclick=()=>{ palCat=c.id; buildPalette(); }; cats.appendChild(b);
+  }
+  const q=$("search").value.trim().toLowerCase(), large=palLarge();
+  const cat=CATS.find(c=>c.id===palCat);
+  let keys=cat?cat.items:Object.keys(DEFS).sort((a,b)=>(/Armor/.test(a)?0:1)-(/Armor/.test(b)?0:1)||a.localeCompare(b));
+  keys=keys.filter(k=>DEFS[k]&&DEFS[k][0]===(large?1:0)&&(!q||k.toLowerCase().includes(q)||DEFS[k][5].toLowerCase().includes(q)));
+  const pal=$("pal"); pal.innerHTML=""; pal.scrollTop=0;
+  for (const k of keys.slice(0,400)) {
+    const t=document.createElement("div"); t.className="pt"+(k===palSub?" on":""); t.title=DEFS[k][5]; t.dataset.sub=k;
+    const im=new Image(); im.loading="lazy"; im.alt=""; im.src="icons/cubes/"+k+".png";
+    im.onerror=()=>{ im.remove(); const sp=document.createElement("span"); sp.textContent=DEFS[k][5]; t.appendChild(sp); };
+    t.appendChild(im); t.onclick=()=>{ palSub=k; pal.querySelectorAll(".pt.on").forEach(e=>e.classList.remove("on")); t.classList.add("on"); palChanged(); };
+    pal.appendChild(t);
+  }
+  if (!keys.length) pal.innerHTML='<div class="hint" style="grid-column:1/-1">Keine Blöcke gefunden.</div>';
+  palChanged();
 }
-function palChanged(fromUser=true){
-  if (fromUser) palSub=$("list").value||palSub;
-  const k=PAL_ICONS[palSub]||PAL_ICONS[palSub.replace(/^Small/,"Large")], im=$("bpico");
-  if (k) { im.src="icons/blocks/"+k+".png"; im.style.display="block"; } else im.style.display="none";
+function palChanged(){
+  const d=DEFS[palSub], im=$("bpico");
+  $("palName").textContent=d?d[5]:palSub;
+  $("palMeta").textContent=d?`${d[1]}×${d[2]}×${d[3]} · ${d[0]?"Large":"Small"} · ${palSub}`:palSub;
+  im.src="icons/cubes/"+palSub+".png"; im.style.visibility="visible"; im.onerror=()=>{ im.style.visibility="hidden"; };
   updateGhostShape();
 }
-$("list").addEventListener("change",()=>palChanged(true));
 $("search").addEventListener("input",buildPalette);
 
 // ───────── Bau-Orientierung / Ghost ─────────
