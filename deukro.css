@@ -133,3 +133,18 @@ html.fx-low body::after{display:none}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation:none !important;transition:none !important}
 }
+
+/* Originale Space-Engineers-Icons */
+.se-ico{width:36px;height:36px;object-fit:contain;display:block;margin:0 auto 2px;image-rendering:auto}
+.se-ico.lg{width:48px;height:48px;margin:6px 0 0;background:var(--dk-field);border:1px solid var(--dk-line);padding:2px}
+.skin-btn .icon{height:auto !important}
+
+/* Zurück-Button */
+#dk-back{margin-left:auto;flex:none;text-decoration:none;font:700 12px var(--font-ui);letter-spacing:.1em;text-transform:uppercase;
+  color:var(--dk-text);background:var(--dk-field);border:1px solid var(--dk-line-strong);padding:8px 16px;white-space:nowrap;
+  clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px);transition:color .15s,border-color .15s,background .15s}
+#dk-back:hover,#dk-back:focus-visible{color:var(--dk-accent);border-color:var(--dk-accent);outline:none;
+  background:linear-gradient(rgba(252,238,9,.08),rgba(252,238,9,.08)),var(--dk-field);box-shadow:inset 0 -2px 0 var(--dk-accent)}
+#dk-back.float{position:fixed;top:10px;right:10px;z-index:9999}
+.wrap>header{position:relative}
+.wrap>header #dk-back{position:absolute;right:0;top:0}

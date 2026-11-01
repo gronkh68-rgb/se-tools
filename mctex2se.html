@@ -208,7 +208,7 @@ label{display:block;color:var(--dim);font-size:10px;margin:6px 0 3px;text-transf
           <option>Battered_Armor</option><option>Frozen_Armor</option><option>Mossy_Armor</option>
           <option>Wooden_Armor</option><option>Concrete_Armor</option><option>Digital_Armor</option>
           <option value="">(kein Skin)</option>
-        </select></div>
+        </select><img id="skinIcon" class="se-ico lg" src="icons/skins/_default.png" alt=""></div>
         <div><label>Auflösung</label><select id="res">
           <option value="16">16</option><option value="8">8</option><option value="32">32</option>
         </select></div>
@@ -918,6 +918,17 @@ syncShapeUI();
 renderFaces();
 rebuildView();
 log('bereit - Texturen laden, Form wählen');
+</script>
+<script>
+(function(){
+  var alias={Wooden_Armor:"Wood_Armor",Digital_Armor:"DigitalCamouflage_Armor"};
+  var sel=document.getElementById("skin"),img=document.getElementById("skinIcon");
+  if(!sel||!img)return;
+  function up(){var v=sel.value;img.src="icons/skins/"+(v?(alias[v]||v):"_default")+".png";}
+  img.onerror=function(){img.style.visibility="hidden";};
+  img.onload=function(){img.style.visibility="visible";};
+  sel.addEventListener("change",up);up();
+})();
 </script>
 </body>
 </html>

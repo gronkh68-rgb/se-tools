@@ -322,7 +322,8 @@ function buildSkinGrid() {
     const btn = document.createElement("div");
     btn.className = "skin-btn"+(s.dlc?" dlc":"")+(s.id===activeSkinId?" active":"");
     btn.title = s.note;
-    btn.innerHTML = `<span class="icon">${s.icon}</span>${s.label}${s.dlc?'<br><span class="dlc-tag">DLC</span>':""}`;
+    const ico = "icons/skins/" + (s.id || "_default") + ".png";
+    btn.innerHTML = `<span class="icon"><img class="se-ico" src="${ico}" alt="" onerror="this.replaceWith(document.createTextNode('${s.icon}'))"></span>${s.label}${s.dlc?'<br><span class="dlc-tag">DLC</span>':""}`;
     btn.addEventListener("click", () => { activeSkinId = s.id; buildSkinGrid(); updateSkinLabel(); });
     grid.appendChild(btn);
   }

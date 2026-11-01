@@ -19,3 +19,17 @@
   }
   if (document.body) mount(); else document.addEventListener('DOMContentLoaded', mount);
 })();
+
+// Zurück-Button zur Startseite (nicht auf der Startseite selbst)
+(function () {
+  if (/(^|\/)(index\.html)?$/.test(location.pathname)) return;
+  function mount() {
+    var a = document.createElement('a');
+    a.id = 'dk-back';
+    a.href = 'index.html';
+    a.textContent = '← Zurück';
+    var h = document.querySelector('header');
+    if (h) { h.appendChild(a); } else { a.className = 'float'; document.body.appendChild(a); }
+  }
+  if (document.body) mount(); else document.addEventListener('DOMContentLoaded', mount);
+})();
