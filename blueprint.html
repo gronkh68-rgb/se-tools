@@ -374,8 +374,13 @@ function rebuild(){
   const clipping=clip<clipMax;
   for (const g of grids) {
     const grp=new THREE.Group();
-    grp.position.set(g.pos[0],g.pos[1],g.pos[2]);
-    grp.quaternion.set(g.q[0],g.q[1],g.q[2],g.q[3]);
+    // Weltposition ignorieren: erstes Grid im Ursprung, weitere Grids relativ dazu
+    const g0=grids[0], q0=new THREE.Quaternion(g0.q[0],g0.q[1],g0.q[2],g0.q[3]).invert();
+    if (g===g0) { grp.position.set(0,0,0); grp.quaternion.set(0,0,0,1); }
+    else {
+      grp.position.set(g.pos[0]-g0.pos[0],g.pos[1]-g0.pos[1],g.pos[2]-g0.pos[2]).applyQuaternion(q0);
+      grp.quaternion.copy(q0).multiply(new THREE.Quaternion(g.q[0],g.q[1],g.q[2],g.q[3]));
+    }
     world.add(grp); g.group=grp;
     const by={box:[],slope:[],corner:[],invcorner:[]};
     const sel=[];
@@ -426,10 +431,18 @@ function updateFloor(){
 }
 
 function fitCamera(){
-  const bd=bounds(), g=activeGrid(); if (!bd||!g) return;
-  const c=new THREE.Vector3(...[0,1,2].map(i=>(bd.mn[i]+bd.mx[i])/2*g.gs));
-  const size=Math.max(bd.mx[0]-bd.mn[0],bd.mx[1]-bd.mn[1],bd.mx[2]-bd.mn[2])+1;
-  const dist=Math.max(size*g.gs*1.6,8);
+  if (!grids.length||!grids[0].group) return;
+  const box=new THREE.Box3(), v=new THREE.Vector3();
+  for (const g of grids) {
+    g.group.updateMatrixWorld(true);
+    for (const b of g.blocks) for (let k=0;k<8;k++) {
+      v.set((b.min[0]+(k&1?b.ext[0]-0.5:-0.5))*g.gs,(b.min[1]+(k&2?b.ext[1]-0.5:-0.5))*g.gs,(b.min[2]+(k&4?b.ext[2]-0.5:-0.5))*g.gs);
+      box.expandByPoint(v.applyMatrix4(g.group.matrixWorld));
+    }
+  }
+  if (box.isEmpty()) return;
+  const c=box.getCenter(new THREE.Vector3()), size=box.getSize(new THREE.Vector3());
+  const dist=Math.max(Math.max(size.x,size.y,size.z)*1.5,8);
   controls.target.copy(c);
   camera.position.set(c.x+dist*0.7,c.y+dist*0.55,c.z+dist*0.8);
   controls.update();
