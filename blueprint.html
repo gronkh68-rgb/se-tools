@@ -36,6 +36,13 @@ label{display:block;color:var(--dim);font-size:10px;margin:6px 0 3px;text-transf
 #viewport{position:relative;overflow:hidden;min-width:0;min-height:0;background:radial-gradient(ellipse at center,#0d1826 0%,#050810 75%)}
 #viewport canvas{display:block;width:100%;height:100%}
 #overlay{position:absolute;left:12px;bottom:10px;color:var(--dim);font-size:10px;line-height:1.6;pointer-events:none}
+#hud{display:none;position:absolute;inset:0;pointer-events:none;z-index:4}
+#viewport.fly #hud{display:block}
+#viewport.fly #overlay{display:none}
+#hudTop{position:absolute;left:14px;top:12px;font-size:12px;color:var(--cy);background:rgba(5,6,11,.7);border:1px solid var(--line);padding:6px 10px;line-height:1.6}
+#hudHelp{position:absolute;left:14px;bottom:12px;font-size:10px;color:var(--dim);background:rgba(5,6,11,.7);padding:4px 8px}
+#cross{position:absolute;left:50%;top:50%;width:18px;height:18px;margin:-9px 0 0 -9px;border:1px solid rgba(252,238,9,.8);border-radius:50%}
+#cross::after{content:"";position:absolute;left:8px;top:8px;width:2px;height:2px;background:var(--cy)}
 #drop{position:absolute;inset:0;display:none;align-items:center;justify-content:center;border:2px dashed var(--cy);background:rgba(5,6,11,.8);font-size:16px;color:var(--cy);z-index:5;pointer-events:none}
 #empty{position:absolute;inset:0;display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center;color:var(--dim);pointer-events:none;text-align:center;line-height:1.8}
 #cats{display:flex;flex-wrap:wrap;gap:3px;margin:7px 0}
@@ -170,7 +177,26 @@ label{display:block;color:var(--dim);font-size:10px;margin:6px 0 3px;text-transf
     <label>Höhenschnitt (Y)</label>
     <input type="range" id="clipY" min="0" max="0" value="0">
     <label class="chk"><input type="checkbox" id="showGrid" checked> Bodenraster</label>
-    <div class="row"><button id="bFit" class="sm">Kamera zurücksetzen</button></div>
+    <label class="chk"><input type="checkbox" id="useModels" checked> Originalformen (statt Quader)</label>
+    <label class="chk"><input type="checkbox" id="showPorts" checked> Frachtverbindungen anzeigen</label>
+    <div class="hint"><span style="color:#00e5ff">■</span> offener Anschluss · <span style="color:#7dff4a">■</span> verbunden</div>
+    <div class="row" style="margin-top:6px"><button id="bFit" class="sm">Kamera zurücksetzen</button><button id="bFly" class="sm g">⛶ Vollbild · Flug (F)</button></div>
+  </div>
+
+  <div class="card">
+    <h3>Symmetrie (Bauen)</h3>
+    <div class="row">
+      <label class="chk"><input type="checkbox" data-sym="0"> X</label>
+      <label class="chk"><input type="checkbox" data-sym="1"> Y</label>
+      <label class="chk"><input type="checkbox" data-sym="2"> Z</label>
+    </div>
+    <div class="row">
+      <div><label>Ebene X</label><input type="number" step="0.5" id="symP0" value="0"></div>
+      <div><label>Ebene Y</label><input type="number" step="0.5" id="symP1" value="0"></div>
+      <div><label>Ebene Z</label><input type="number" step="0.5" id="symP2" value="0"></div>
+    </div>
+    <div class="row" style="margin-top:6px"><button id="bSymMid" class="sm">Ebenen auf Mitte setzen</button></div>
+    <div class="hint">Beim Bauen, Löschen und Färben wird alles an den gewählten Ebenen gespiegelt (Zellkoordinaten, .5 = zwischen zwei Zellen).</div>
   </div>
 
   <div class="card">
@@ -182,6 +208,7 @@ label{display:block;color:var(--dim);font-size:10px;margin:6px 0 3px;text-transf
 <div id="viewport">
   <div id="empty"><div style="font-size:30px">⬡</div><div>Blueprint öffnen, hineinziehen oder mit „Neu“ von vorn bauen</div></div>
   <div id="overlay"></div>
+  <div id="hud"><div id="hudTop"></div><div id="cross"></div><div id="hudHelp">WASD bewegen · Q/E runter/hoch · Shift schnell · Mausrad Tempo · Klick = Werkzeug · 1-4 Werkzeug · R/T/Z drehen · Esc beenden</div></div>
   <div id="drop">Blueprint hier ablegen</div>
 </div>
 </div>
@@ -325,7 +352,21 @@ const GEO={
   corner:polyhedron([[H,-H,-H],[-H,-H,-H],[H,H,-H],[H,-H,H]]),
   invcorner:polyhedron([[-H,-H,-H],[-H,-H,H],[H,-H,H],[-H,H,-H],[-H,H,H],[H,H,-H],[H,H,H]])
 };
+// Originalmodelle aus den Spieldateien (vereinfachte Meshes + Frachtanschluss-Dummies), siehe models.json/models.bin
+let MODELS=null; const modGeoCache=new Map();
+Promise.all([fetch("models.json").then(r=>r.json()),fetch("models.bin").then(r=>r.arrayBuffer())])
+  .then(([j,buf])=>{ MODELS={m:j.m,s:j.s,buf}; if (doc) { updateGhostShape(); rebuild(); } }).catch(()=>{});
+function modelGeo(i){
+  let g=modGeoCache.get(i); if (g) return g;
+  const m=MODELS.m[i], pos=new Int16Array(MODELS.buf,m.o,m.v*3), idx=new Uint16Array(MODELS.buf,m.o+m.v*6,m.t*3);
+  const f=new Float32Array(m.v*3); for (let k=0;k<f.length;k++) f[k]=pos[k]/256;
+  g=new THREE.BufferGeometry(); g.setAttribute("position",new THREE.BufferAttribute(f,3));
+  g.setIndex(new THREE.BufferAttribute(Uint16Array.from(idx),1)); g.computeBoundingSphere();
+  modGeoCache.set(i,g); return g;
+}
+function geoFor(k){ return k[0]==="m"?modelGeo(+k.slice(1)):GEO[k]; }
 function shapeOf(b){
+  if (MODELS&&$("useModels").checked) { const i=MODELS.s[b.sub]; if (i!==undefined) return "m"+i; }
   const d=getDef(b.sub);
   if (d[1]!==d[2]||d[2]!==d[3]||d[4]!=="CubeBlock") return "box";
   const n=b.sub.replace(/_?50cm$/,"");
@@ -351,18 +392,19 @@ const world=new THREE.Group(); scene.add(world);
 let gridHelper=null;
 const ghost=new THREE.Mesh(GEO.box,new THREE.MeshBasicMaterial({color:0x2dffb3,transparent:true,opacity:0.45,depthWrite:false}));
 ghost.visible=false; scene.add(ghost);
-const matBlock=new THREE.MeshStandardMaterial({roughness:0.65,metalness:0.2,flatShading:true});
+const matBlock=new THREE.MeshStandardMaterial({roughness:0.65,metalness:0.2,flatShading:true,side:THREE.DoubleSide});
 const matSel=new THREE.MeshBasicMaterial({color:0xfcee09,transparent:true,opacity:0.4,depthWrite:false});
 let pickMeshes=[];
 
 function resize(){ const w=vp.clientWidth,h=vp.clientHeight; if (!w||!h) return; renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix(); }
 new ResizeObserver(resize).observe(vp); resize();
 
-function blockMatrix(b,scale){
+function blockMatrix(b,scale,model){
   const gs=b.grid.gs, r=cross(b.f,b.u), bk=neg(b.f), [sx,sy,sz]=sizeOf(b);
   const c=[0,1,2].map(i=>(b.min[i]+(b.ext[i]-1)/2)*gs);
   const m=new THREE.Matrix4().makeBasis(new THREE.Vector3(...r),new THREE.Vector3(...b.u),new THREE.Vector3(...bk));
-  m.multiply(new THREE.Matrix4().makeScale(sx*gs*scale,sy*gs*scale,sz*gs*scale));
+  if (model) m.multiply(new THREE.Matrix4().makeScale(scale,scale,scale));
+  else m.multiply(new THREE.Matrix4().makeScale(sx*gs*scale,sy*gs*scale,sz*gs*scale));
   m.setPosition(c[0],c[1],c[2]);
   return m;
 }
@@ -385,19 +427,21 @@ function rebuild(){
       grp.quaternion.copy(q0).multiply(new THREE.Quaternion(g.q[0],g.q[1],g.q[2],g.q[3]));
     }
     world.add(grp); g.group=grp;
-    const by={box:[],slope:[],corner:[],invcorner:[]};
-    const sel=[];
+    const by={};
+    const sel=[], portBlocks=[];
     for (const b of g.blocks) {
       if (clipping && b.min[1]>clip) continue;
-      by[shapeOf(b)].push(b);
+      const sk=shapeOf(b); (by[sk]||(by[sk]=[])).push(b);
+      if (sk[0]==="m"&&MODELS.m[+sk.slice(1)].p.length) portBlocks.push([b,MODELS.m[+sk.slice(1)].p]);
       if (selection.has(b)) sel.push(b);
     }
     for (const k in by) {
       const arr=by[k]; if (!arr.length) continue;
-      const im=new THREE.InstancedMesh(GEO[k],matBlock,arr.length);
+      const isM=k[0]==="m";
+      const im=new THREE.InstancedMesh(geoFor(k),matBlock,arr.length);
       const col=new THREE.Color();
       arr.forEach((b,i)=>{
-        im.setMatrixAt(i,blockMatrix(b,0.98));
+        im.setMatrixAt(i,blockMatrix(b,isM?1:0.98,isM));
         const c=mode==="type"?typeColor(b):maskToRgb(b.hsv);
         im.setColorAt(i,col.setRGB(c[0],c[1],c[2]));
       });
@@ -409,8 +453,44 @@ function rebuild(){
       sel.forEach((b,i)=>im.setMatrixAt(i,blockMatrix(b,1.07)));
       grp.add(im);
     }
+    if (portBlocks.length&&$("showPorts").checked) addPorts(grp,g,portBlocks);
   }
-  updateFloor(); updateUI();
+  updateFloor(); updateUI(); if (typeof updateSymPlanes==="function") updateSymPlanes();
+}
+
+// Frachtverbindungen: Dummies "detector_conveyor*" der Modelle; zwei sich gegenüberliegende Anschlüsse = verbunden
+const matPortOpen=new THREE.MeshBasicMaterial({color:0x00e5ff,transparent:true,opacity:0.85});
+const matPortOk=new THREE.MeshBasicMaterial({color:0x7dff4a,transparent:true,opacity:0.85});
+const GEO_PORT=new THREE.BoxGeometry(1,1,1);
+function addPorts(grp,g,list){
+  const items=[], hash=new Map(), key=(x,y,z)=>Math.round(x/0.6)+","+Math.round(y/0.6)+","+Math.round(z/0.6);
+  for (const [b,ps] of list) {
+    const bm=blockMatrix(b,1,true);
+    for (const p of ps) {
+      const loc=new THREE.Matrix4().makeBasis(new THREE.Vector3(p[0],p[1],p[2]),new THREE.Vector3(p[3],p[4],p[5]),new THREE.Vector3(p[6],p[7],p[8])).setPosition(p[9],p[10],p[11]);
+      const m=bm.clone().multiply(loc);
+      const L=[Math.hypot(p[0],p[1],p[2]),Math.hypot(p[3],p[4],p[5]),Math.hypot(p[6],p[7],p[8])], t=L.indexOf(Math.min(...L));
+      const e=m.elements, ax=new THREE.Vector3(e[t*4],e[t*4+1],e[t*4+2]).normalize();
+      const it={m,pos:new THREE.Vector3(e[12],e[13],e[14]),n:ax,b,ok:false,t};
+      items.push(it);
+      const k=key(it.pos.x,it.pos.y,it.pos.z); (hash.get(k)||hash.set(k,[]).get(k)).push(it);
+    }
+  }
+  for (const it of items) {
+    for (let dx=-1;dx<=1&&!it.ok;dx++) for (let dy=-1;dy<=1&&!it.ok;dy++) for (let dz=-1;dz<=1&&!it.ok;dz++) {
+      const a=hash.get(key(it.pos.x+dx*0.6,it.pos.y+dy*0.6,it.pos.z+dz*0.6)); if (!a) continue;
+      for (const o of a) if (o!==it&&o.b!==it.b&&o.pos.distanceTo(it.pos)<0.45&&Math.abs(o.n.dot(it.n))>0.8) { it.ok=true; break; }
+    }
+  }
+  for (const ok of [false,true]) {
+    const arr=items.filter(i=>i.ok===ok); if (!arr.length) continue;
+    const im=new THREE.InstancedMesh(GEO_PORT,ok?matPortOk:matPortOpen,arr.length);
+    arr.forEach((it,i)=>{
+      const s=[0.6,0.6,0.6]; s[it.t]=0.8; // kleine Kachel auf der Blockfläche
+      im.setMatrixAt(i,it.m.clone().multiply(new THREE.Matrix4().makeScale(s[0],s[1],s[2])));
+    });
+    grp.add(im);
+  }
 }
 
 function bounds(){
@@ -451,7 +531,9 @@ function fitCamera(){
   controls.update();
 }
 
-(function loop(){ requestAnimationFrame(loop); controls.update(); renderer.render(scene,camera); })();
+var fly={on:false,yaw:0,pitch:0,speed:15,keys:new Set(),shift:false,locked:false,dist:40,ghostT:0,hudT:0};
+let lastT=performance.now();
+(function loop(now){ requestAnimationFrame(loop); const dt=Math.min(0.1,((now||lastT)-lastT)/1000); lastT=now||lastT; if (fly.on) flyStep(dt); else controls.update(); renderer.render(scene,camera); })();
 
 // ───────── Undo ─────────
 function snapshot(){ return new XMLSerializer().serializeToString(doc); }
@@ -587,16 +669,45 @@ $("search").addEventListener("input",buildPalette);
 // ───────── Bau-Orientierung / Ghost ─────────
 function ghostBlock(){ const g=activeGrid(); if (!g) return null; const b={sub:palSub,grid:g,min:[0,0,0],f:buildOri.f,u:buildOri.u}; computeExt(b); return b; }
 let ghostCell=null;
-function updateGhostShape(){ const b=ghostBlock(); if (!b) return; ghost.geometry=GEO[shapeOf(b)]; }
+const ghostPool=[ghost];
+function ghostMesh(i){
+  while (ghostPool.length<=i) { const m=new THREE.Mesh(GEO.box,ghost.material.clone()); m.visible=false; m.matrixAutoUpdate=false; scene.add(m); ghostPool.push(m); }
+  return ghostPool[i];
+}
+function hideGhosts(){ for (const g of ghostPool) g.visible=false; }
+function updateGhostShape(){ if (ghostCell&&tool==="build") placeGhost(ghostCell); }
+
+// Symmetrie: spiegelt einen Block an den gewählten Ebenen (Zellkoordinaten); Block auf der Ebene ergibt keine Dopplung
+function symAxes(){ return [...document.querySelectorAll("[data-sym]")].filter(c=>c.checked).map(c=>+c.dataset.sym); }
+function symVariants(b){
+  const out=[{min:[...b.min],f:[...b.f],u:[...b.u]}], axes=symAxes();
+  for (const a of axes) {
+    const p=+$("symP"+a).value||0;
+    for (const v of [...out]) {
+      const nv={min:[...v.min],f:[...v.f],u:[...v.u]};
+      nv.min[a]=2*p-(v.min[a]+b.ext[a]-1); nv.f[a]=-nv.f[a]; nv.u[a]=-nv.u[a];
+      if (!out.some(o=>o.min[a]===nv.min[a]&&o.min.join()===nv.min.join())) out.push(nv);
+    }
+  }
+  return out;
+}
+function variantBlocks(b){
+  return symVariants(b).map(v=>{ const nb={sub:b.sub,grid:b.grid,min:v.min,f:v.f,u:v.u}; computeExt(nb); return nb; });
+}
 function placeGhost(cell){
-  const b=ghostBlock(); if (!b||!cell) { ghost.visible=false; return; }
+  const b=ghostBlock(); if (!b||!cell) { hideGhosts(); return; }
   b.min=[...cell]; ghostCell=cell;
-  const g=activeGrid(); ghost.geometry=GEO[shapeOf(b)]; g.group.updateMatrix();
-  const m=blockMatrix(b,0.98);
-  ghost.matrixAutoUpdate=false;
-  ghost.matrix.copy(g.group.matrix).multiply(m);
-  ghost.material.color.set(cellsFree(b)?0x2dffb3:0xff2a55);
-  ghost.visible=true;
+  const g=activeGrid(); g.group.updateMatrix();
+  const vs=variantBlocks(b), taken=new Set();
+  vs.forEach((vb,i)=>{
+    const gm=ghostMesh(i), sk=shapeOf(vb), isM=sk[0]==="m";
+    gm.geometry=geoFor(sk);
+    gm.matrix.copy(g.group.matrix).multiply(blockMatrix(vb,isM?1:0.98,isM));
+    let free=cellsFree(vb); forCells(vb,(x,y,z)=>{ const k=x+","+y+","+z; if (taken.has(k)) free=false; taken.add(k); });
+    gm.material.color.set(free?0x2dffb3:0xff2a55);
+    gm.visible=true;
+  });
+  for (let i=vs.length;i<ghostPool.length;i++) ghostPool[i].visible=false;
 }
 function forCells(b,fn){ for (let x=0;x<b.ext[0];x++) for (let y=0;y<b.ext[1];y++) for (let z=0;z<b.ext[2];z++) fn(b.min[0]+x,b.min[1]+y,b.min[2]+z); }
 function occ(){ if (!occCache) { occCache=new Map(); const g=activeGrid(); if (g) for (const b of g.blocks) forCells(b,(x,y,z)=>occCache.set(`${x},${y},${z}`,b)); } return occCache; }
@@ -639,12 +750,13 @@ function buildTarget(ev){
 
 let down=null;
 const cv=renderer.domElement;
-cv.addEventListener("pointerdown",e=>{ down={x:e.clientX,y:e.clientY,t:performance.now(),btn:e.button}; });
+cv.addEventListener("pointerdown",e=>{ if (fly.on) return; down={x:e.clientX,y:e.clientY,t:performance.now(),btn:e.button}; });
 cv.addEventListener("pointermove",e=>{
+  if (fly.on) return;
   if (tool==="build"&&doc&&!(e.buttons)) { const c=buildTarget(e); placeGhost(c); }
-  else if (ghost.visible) ghost.visible=false;
+  else if (ghost.visible) hideGhosts();
 });
-cv.addEventListener("pointerleave",()=>{ ghost.visible=false; });
+cv.addEventListener("pointerleave",()=>{ if (!fly.on) hideGhosts(); });
 cv.addEventListener("pointerup",e=>{
   if (!down||!doc||down.btn!==0) { down=null; return; }
   const moved=Math.hypot(e.clientX-down.x,e.clientY-down.y)>4; down=null; if (moved) return;
@@ -658,15 +770,29 @@ function clickAt(e){
     rebuild();
   } else if (tool==="erase") {
     const p=pickBlock(e); if (!p) return;
-    pushUndo(); p.b.el.remove(); selection.delete(p.b); loadModel(); rebuild();
+    pushUndo();
+    const dead=new Set([p.b]);
+    if (symAxes().length) for (const vb of variantBlocks(p.b)) forCells(vb,(x,y,z)=>{ const o=occ().get(`${x},${y},${z}`); if (o&&o.sub===p.b.sub) dead.add(o); });
+    for (const b of dead) { b.el.remove(); selection.delete(b); }
+    loadModel(); rebuild();
   } else if (tool==="paint") {
     const p=pickBlock(e); if (!p) return;
-    pushUndo(); applyColor([p.b]); rebuild();
+    pushUndo();
+    const hit=new Set([p.b]);
+    if (symAxes().length) for (const vb of variantBlocks(p.b)) forCells(vb,(x,y,z)=>{ const o=occ().get(`${x},${y},${z}`); if (o&&o.sub===p.b.sub) hit.add(o); });
+    applyColor([...hit]); rebuild();
   } else if (tool==="build") {
     const g=activeGrid(), c=buildTarget(e); if (!g||!c) return;
-    const nb=ghostBlock(); nb.min=[...c]; if (!cellsFree(nb)) return;
+    const nb=ghostBlock(); nb.min=[...c];
+    const taken=new Set(), todo=[];
+    for (const vb of variantBlocks(nb)) {
+      let free=cellsFree(vb); forCells(vb,(x,y,z)=>{ const k=x+","+y+","+z; if (taken.has(k)) free=false; taken.add(k); });
+      if (free) todo.push(vb);
+    }
+    if (!todo.length) return;
     pushUndo();
-    addBlock(g,palSub,c,buildOri.f,buildOri.u,rgbToMask(...hexToRgb($("colIn").value)),$("paintSkin").checked?$("skinSel").value:"");
+    const col=rgbToMask(...hexToRgb($("colIn").value)), skin=$("paintSkin").checked?$("skinSel").value:"";
+    for (const vb of todo) addBlock(g,palSub,vb.min,vb.f,vb.u,col,skin);
     rebuild(); placeGhost(c);
   }
 }
@@ -721,7 +847,7 @@ $("bUndo").onclick=undo; $("bRedo").onclick=redo;
 
 // ───────── UI ─────────
 const HINTS={select:"Klick wählt einen Block, Shift/Strg-Klick erweitert die Auswahl.",build:"Klick auf Blockfläche oder Boden setzt den Palettenblock (grün = frei, rot = belegt).",erase:"Klick löscht den Block unter dem Mauszeiger.",paint:"Klick färbt den Block mit der gewählten Farbe (und Skin)."};
-function setTool(t){ tool=t; document.querySelectorAll("[data-tool]").forEach(b=>b.classList.toggle("on",b.dataset.tool===t)); $("toolHint").textContent=HINTS[t]; ghost.visible=false; cv.style.cursor=t==="select"?"default":"crosshair"; }
+function setTool(t){ tool=t; document.querySelectorAll("[data-tool]").forEach(b=>b.classList.toggle("on",b.dataset.tool===t)); $("toolHint").textContent=HINTS[t]; hideGhosts(); if (typeof updateSymPlanes==="function") updateSymPlanes(); cv.style.cursor=t==="select"?"default":"crosshair"; }
 document.querySelectorAll("[data-tool]").forEach(b=>b.onclick=()=>setTool(b.dataset.tool)); setTool("select");
 
 $("skinSel").innerHTML='<option value="">(kein Skin)</option>'+SKINS.map(s=>`<option>${s}</option>`).join("");
@@ -736,6 +862,28 @@ $("clipY").addEventListener("input",rebuild);
 $("viewMode").addEventListener("change",rebuild);
 $("showGrid").addEventListener("change",updateFloor);
 $("bFit").onclick=fitCamera;
+$("useModels").addEventListener("change",()=>{ rebuild(); updateGhostShape(); });
+$("showPorts").addEventListener("change",rebuild);
+$("bSymMid").onclick=()=>{ const bd=bounds(); if (!bd) return; for (let a=0;a<3;a++) $("symP"+a).value=(bd.mn[a]+bd.mx[a])/2; updateSymPlanes(); };
+
+// Symmetrieebenen als Hilfsflächen
+var symPlanes=[0,1,2].map(()=>{ const m=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({color:0x00f0ff,transparent:true,opacity:0.12,side:THREE.DoubleSide,depthWrite:false})); m.visible=false; scene.add(m); return m; });
+function updateSymPlanes(){
+  if (!symPlanes) return;
+  const g=activeGrid(), bd=bounds(); const ax=symAxes();
+  symPlanes.forEach((m,a)=>{
+    m.visible=!!(g&&g.group&&bd&&ax.includes(a)&&tool==="build"); if (!m.visible) return;
+    g.group.updateMatrix();
+    const p=(+$("symP"+a).value||0)*g.gs, c=[0,1,2].map(i=>(bd.mn[i]+bd.mx[i])/2*g.gs), s=[0,1,2].map(i=>(bd.mx[i]-bd.mn[i]+8)*g.gs);
+    const q=new THREE.Quaternion(); if (a===0) q.setFromEuler(new THREE.Euler(0,Math.PI/2,0)); else if (a===1) q.setFromEuler(new THREE.Euler(-Math.PI/2,0,0));
+    const pos=new THREE.Vector3(c[0],c[1],c[2]); pos.setComponent(a,p);
+    const w=a===0?s[2]:s[0], h=a===1?s[2]:s[1];
+    m.geometry.dispose(); m.geometry=new THREE.PlaneGeometry(w,h);
+    m.matrixAutoUpdate=false; m.matrix.copy(g.group.matrix).multiply(new THREE.Matrix4().compose(pos,q,new THREE.Vector3(1,1,1)));
+  });
+}
+document.querySelectorAll("[data-sym]").forEach(c=>c.addEventListener("change",()=>{ updateSymPlanes(); if (ghostCell) placeGhost(ghostCell); }));
+for (let a=0;a<3;a++) $("symP"+a).addEventListener("input",()=>{ updateSymPlanes(); if (ghostCell) placeGhost(ghostCell); });
 
 function updateUI(){
   const n=grids.reduce((s,g)=>s+g.blocks.length,0), bd=bounds(), g=activeGrid();
@@ -751,7 +899,7 @@ function updateUI(){
   if (!s.length) $("selInfo").textContent="Nichts ausgewählt.";
   else if (s.length===1) { const b=s[0]; $("selInfo").innerHTML=`<b>${esc(getDef(b.sub)[5])}</b><br>${esc(b.sub)}<br>Zelle ${b.min.join(", ")} · ${vecName(b.f)}/${vecName(b.u)}<br>Farbe ${rgbToHex(maskToRgb(b.hsv))}${b.skin?" · "+esc(b.skin):""}`; $("colIn").value=rgbToHex(maskToRgb(b.hsv)); }
   else $("selInfo").textContent=s.length+" Blöcke ausgewählt.";
-  $("overlay").textContent=n+" Blöcke · Linksklick+Ziehen drehen · Rechtsklick+Ziehen verschieben · Mausrad zoomen";
+  $("overlay").textContent=n+" Blöcke · Linksklick+Ziehen drehen · Rechtsklick+Ziehen verschieben · Mausrad zoomen · F = Vollbild/Flug (WASD)";
 }
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
@@ -792,9 +940,67 @@ addEventListener("keydown",e=>{
   else if (e.ctrlKey&&(k==="y"||(e.shiftKey&&k==="z"))) { e.preventDefault(); redo(); }
   else if (k==="delete"||k==="backspace") deleteSel();
   else if (k==="escape") { selection.clear(); rebuild(); }
+  else if (k==="f") { fly.on?exitFly():enterFly(); }
+  else if (fly.on&&"wasdqec ".includes(k)&&k.length===1) { fly.keys.add(k); e.preventDefault(); }
   else if (k==="r") rotBuild("y"); else if (k==="t") rotBuild("x"); else if (k==="z") rotBuild("z");
   else if (k==="1") setTool("select"); else if (k==="2") setTool("build"); else if (k==="3") setTool("erase"); else if (k==="4") setTool("paint");
 });
+
+// ───────── Vollbild & Flugmodus (WASD) ─────────
+function centerEv(e){ const r=cv.getBoundingClientRect(); return {clientX:r.left+r.width/2,clientY:r.top+r.height/2,shiftKey:!!(e&&e.shiftKey),ctrlKey:!!(e&&e.ctrlKey)}; }
+function enterFly(){
+  if (!doc||fly.on) return;
+  const d=new THREE.Vector3(); camera.getWorldDirection(d);
+  fly.dist=Math.max(8,camera.position.distanceTo(controls.target));
+  fly.yaw=Math.atan2(-d.x,-d.z); fly.pitch=Math.asin(Math.max(-1,Math.min(1,d.y)));
+  fly.on=true; fly.keys.clear(); vp.classList.add("fly"); controls.enabled=false; hideGhosts();
+  const g=activeGrid(); fly.speed=g&&g.large?20:6;
+  const rq=vp.requestFullscreen||vp.webkitRequestFullscreen; if (rq) { try { const p=rq.call(vp); if (p&&p.catch) p.catch(()=>{}); } catch(e){} }
+  flyHud();
+}
+function exitFly(){
+  if (!fly.on) return;
+  fly.on=false; fly.keys.clear(); vp.classList.remove("fly"); controls.enabled=true; hideGhosts();
+  if (document.pointerLockElement) document.exitPointerLock();
+  if (document.fullscreenElement) { try { document.exitFullscreen(); } catch(e){} }
+  const d=new THREE.Vector3(); camera.getWorldDirection(d);
+  controls.target.copy(camera.position).addScaledVector(d,fly.dist); controls.update();
+}
+function flyStep(dt){
+  camera.rotation.set(fly.pitch,fly.yaw,0,"YXZ");
+  const sp=fly.speed*(fly.shift?4:1)*dt, k=fly.keys, d=new THREE.Vector3(); camera.getWorldDirection(d);
+  const r=new THREE.Vector3().crossVectors(d,camera.up).normalize();
+  if (k.has("w")) camera.position.addScaledVector(d,sp);
+  if (k.has("s")) camera.position.addScaledVector(d,-sp);
+  if (k.has("d")) camera.position.addScaledVector(r,sp);
+  if (k.has("a")) camera.position.addScaledVector(r,-sp);
+  if (k.has("e")||k.has(" ")) camera.position.y+=sp;
+  if (k.has("q")||k.has("c")) camera.position.y-=sp;
+  const now=performance.now();
+  if (fly.locked&&tool==="build"&&now-fly.ghostT>90) { fly.ghostT=now; placeGhost(buildTarget(centerEv())); }
+  if (now-fly.hudT>250) { fly.hudT=now; flyHud(); }
+}
+const TOOLN={select:"Wählen",build:"Bauen",erase:"Löschen",paint:"Färben"};
+function flyHud(){
+  const d=DEFS[palSub];
+  $("hudTop").innerHTML=`${TOOLN[tool]}${tool==="build"?" · "+esc(d?d[5]:palSub):""} · Tempo ${fly.speed.toFixed(0)} m/s${fly.locked?"":"<br>Klick ins Bild: Maus steuern"}`;
+}
+document.addEventListener("fullscreenchange",()=>{ if (!document.fullscreenElement&&fly.on) exitFly(); });
+document.addEventListener("pointerlockchange",()=>{ fly.locked=document.pointerLockElement===cv; if (!fly.locked) hideGhosts(); flyHud(); });
+cv.addEventListener("mousedown",e=>{
+  if (!fly.on) return;
+  if (!fly.locked) { cv.requestPointerLock&&cv.requestPointerLock(); return; }
+  if (e.button===0) clickAt(centerEv(e));
+});
+addEventListener("mousemove",e=>{
+  if (!fly.on||!fly.locked) return;
+  fly.yaw-=e.movementX*0.0022; fly.pitch=Math.max(-1.55,Math.min(1.55,fly.pitch-e.movementY*0.0022));
+});
+cv.addEventListener("wheel",e=>{ if (!fly.on) return; e.preventDefault(); fly.speed=Math.max(1,Math.min(400,fly.speed*(e.deltaY<0?1.2:1/1.2))); },{passive:false});
+addEventListener("keydown",e=>{ if (e.key==="Shift") fly.shift=true; });
+addEventListener("keyup",e=>{ if (e.key==="Shift") fly.shift=false; fly.keys.delete(e.key.toLowerCase()); });
+addEventListener("blur",()=>{ fly.keys.clear(); fly.shift=false; });
+$("bFly").onclick=()=>{ fly.on?exitFly():enterFly(); };
 buildPalette();
 </script>
 </body>
